@@ -26,6 +26,20 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 /**
+ * 设备打开事件的归属策略：只记录应用进程（uid>=10000）直接打开设备的证据。
+ *
+ * `/dev/video*` 的 kprobe 打开者通常是 cameraserver / 厂商相机 provider，`/dev/snd` 的打开者通常是
+ * audioserver；它们既不能归因到某个用户 App，相机服务探针自身的 `dumpsys media.camera` 轮询也会触发
+ * cameraserver 打开设备。把这类系统进程的打开当作用户行为会污染相机/麦克风统计（1.x 版本实测约每分钟
+ * 一对，关闭相机服务探针后即消失）。
+ */
+internal object NativeOpenFilter {
+    const val MIN_APP_UID = 10_000
+
+    fun shouldRecord(uid: Int): Boolean = uid >= MIN_APP_UID
+}
+
+/**
  * 原生采集器 privd 的流式探针（Kotlin 侧）。
  *
  * 工作方式：
@@ -677,6 +691,9 @@ class NativeStreamProbe(
                     else -> return
                 }
                 val uid = optUid(json)
+                // 相机/录音设备的打开者几乎总是 cameraserver / audioserver（uid<10000），既无法归因到
+                // 具体 App，相机服务探针的 dumpsys 轮询还会自己触发这些打开；不作为用户行为记录。
+                if (!NativeOpenFilter.shouldRecord(uid)) return
                 // kprobe 在每次设备打开/轮询时都会触发，做限流：同 (uid,path) 10s 一次，
                 // 系统媒体服务（cameraserver/audioserver）60s 一次
                 if (!openAllowed(uid, path)) return

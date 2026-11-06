@@ -5,8 +5,8 @@ plugins {
 }
 
 // 版本号由 CI 注入：-PappVersionName=1.1.0 -PappVersionCode=123
-val appVersionName: String = providers.gradleProperty("appVersionName").orNull ?: "1.2.1"
-val appVersionCode: Int = providers.gradleProperty("appVersionCode").orNull?.toIntOrNull() ?: 10201
+val appVersionName: String = providers.gradleProperty("appVersionName").orNull ?: "1.2.3"
+val appVersionCode: Int = providers.gradleProperty("appVersionCode").orNull?.toIntOrNull() ?: 10203
 
 // 发布签名：由 GitHub Actions 从 Secrets 注入 keystore；未配置时回退到 debug keystore（仅用于侧载测试）。
 val releaseKeystore: File? = System.getenv("PRIVPROBE_KEYSTORE_PATH")

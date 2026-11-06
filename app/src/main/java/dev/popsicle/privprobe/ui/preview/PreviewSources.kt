@@ -11,6 +11,7 @@ import dev.popsicle.privprobe.core.model.CategoryDetailState
 import dev.popsicle.privprobe.core.model.DashboardState
 import dev.popsicle.privprobe.core.model.PrivacyCategory
 import dev.popsicle.privprobe.core.model.PrivacyEvent
+import dev.popsicle.privprobe.core.model.TimelinePage
 import dev.popsicle.privprobe.core.model.TargetDetailState
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -45,7 +46,11 @@ class PreviewRepository : PrivacyRepository {
             }
         }
 
-    override fun observeCaller(category: PrivacyCategory, uid: Int): Flow<CallerDetailState> =
+    override fun observeCaller(
+        category: PrivacyCategory,
+        uid: Int,
+        packageName: String?,
+    ): Flow<CallerDetailState> =
         cleared.map { isCleared ->
             if (isCleared) {
                 val summary = PreviewDataset.caller(category, uid).caller
@@ -67,18 +72,20 @@ class PreviewRepository : PrivacyRepository {
 
     override suspend fun timelineForCategory(
         category: PrivacyCategory,
+        cursor: dev.popsicle.privprobe.core.model.TimelineCursor?,
         limit: Int,
-        offset: Int,
-    ): List<PrivacyEvent> = if (cleared.value) {
-        emptyList()
+    ): TimelinePage = if (cleared.value || cursor != null) {
+        TimelinePage(emptyList(), null)
     } else {
-        PreviewDataset.events
-            .asSequence()
-            .filter { it.category == category }
-            .sortedByDescending { it.ts }
-            .drop(offset)
-            .take(limit)
-            .toList()
+        TimelinePage(
+            PreviewDataset.events
+                .asSequence()
+                .filter { it.category == category }
+                .sortedByDescending { it.ts }
+                .take(limit)
+                .toList(),
+            null,
+        )
     }
 
     override suspend fun todayEventCount(): Long = if (cleared.value) 0 else PreviewDataset.events.size.toLong()

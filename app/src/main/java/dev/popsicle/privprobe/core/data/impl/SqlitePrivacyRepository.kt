@@ -19,6 +19,8 @@ import dev.popsicle.privprobe.core.model.PrivacyCategory
 import dev.popsicle.privprobe.core.model.PrivacyEvent
 import dev.popsicle.privprobe.core.model.TargetDetailState
 import dev.popsicle.privprobe.core.model.TargetSummary
+import dev.popsicle.privprobe.core.model.TimelineCursor
+import dev.popsicle.privprobe.core.model.TimelinePage
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
@@ -72,6 +74,7 @@ import kotlinx.coroutines.withContext
  *
  * ## 迁移（P1-6）
  * - 逐版本 ALTER TABLE / CREATE TABLE / 建索引 / backfill，不 DROP 用户数据。
+ * - v4：聚合表按 (uid, package) 拆分调用者，清理相机探针自噪与自身/旧包名事件。
  */
 class SqlitePrivacyRepository(
     context: Context,
@@ -97,6 +100,9 @@ class SqlitePrivacyRepository(
 
     private val appContext = context.applicationContext
     private val dbFile: File = appContext.getDatabasePath(DB_NAME)
+
+    /** 本 App 包名：自身产生的事件不是被审计对象，不写入历史。 */
+    private val selfPackage: String = appContext.packageName
     private val version = MutableStateFlow(0L)
     private val insertCounter = AtomicLong(0)
     private val maintenanceLock = Any()
@@ -175,6 +181,7 @@ class SqlitePrivacyRepository(
             when (v) {
                 1 -> migrateV1ToV2(db)
                 2 -> migrateV2ToV3(db)
+                3 -> migrateV3ToV4(db)
                 else -> Log.w(TAG, "no migration step for v$v; keeping data as-is")
             }
             v++
@@ -206,26 +213,60 @@ class SqlitePrivacyRepository(
     }
 
     /**
-     * v2 → v3：建按天预聚合表 + AFTER INSERT 触发器，并从 events 回填。
-     * 回填在 SQLiteOpenHelper 的升级事务里完成，失败会整体回滚，不会留下半套聚合数据。
+     * v2 → v3：建按天预聚合表 + AFTER INSERT 触发器。数据回填统一由 v3 → v4 完成，
+     * 因为 v4 的聚合键包含 package，重复回填会白跑一遍。
      */
     private fun migrateV2ToV3(db: SQLiteDatabase) {
         createAggTables(db)
-        // 回填（设备上 7 天 ≈ 几十万行；一次性成本，升级在后台 IO 线程完成）
+        createAggTriggers(db)
+        createEventIndexes(db)
+        Log.i(TAG, "migrated v2→v3: pre-aggregation tables created")
+    }
+
+    /**
+     * v3 → v4：修正三类数据口径问题（聚合表是派生数据，重建不影响事件）：
+     *
+     * 1. 相机 kprobe `device_open` 的打开者是 cameraserver / 厂商相机 provider，本 App 的相机服务探针
+     *    轮询本身就会触发这些打开（实测关闭探针 4 分钟 0 条），无法归因到用户 App，删除历史自噪；
+     *    后续采集在 NativeStreamProbe 侧过滤系统进程的设备打开。
+     * 2. 本 App 自身与旧包名（dev.popsicle.privradar）的事件不是被审计对象，从历史清理；后续写入跳过。
+     * 3. agg_cat_uid / agg_uid_target 改为按 (uid, package) 拆分，共享 uid（典型 uid 1000）不再把
+     *    多个系统应用合并成一行、再用最后一条事件的包名当标签。
+     */
+    private fun migrateV3ToV4(db: SQLiteDatabase) {
+        dropAggTriggers(db)
+        db.execSQL(
+            "DELETE FROM events WHERE category IN ('camera','microphone') " +
+                "AND sub_type='device_open' AND source='KERNEL_TRACE' AND is_system=1",
+        )
+        db.execSQL(
+            "DELETE FROM events WHERE package IN (?,?)",
+            arrayOf<Any>(selfPackage, LEGACY_SELF_PACKAGE),
+        )
+        dropAggTables(db)
+        createAggTables(db)
+        backfillAggregates(db)
+        createAggTriggers(db)
+        createEventIndexes(db)
+        Log.i(TAG, "migrated v3→v4: callers split by package, probe self-noise purged")
+    }
+
+    /** 用 events 全量重建按天预聚合表（迁移使用；调用前需已摘掉触发器）。 */
+    private fun backfillAggregates(db: SQLiteDatabase) {
         db.execSQL(
             "INSERT INTO agg_cat(day,category,is_system,cnt,last_ts) " +
                 "SELECT day,category,is_system,COUNT(*),MAX(ts) FROM events " +
                 "GROUP BY day,category,is_system",
         )
         db.execSQL(
-            "INSERT INTO agg_cat_uid(day,category,is_system,uid,cnt,last_ts,package,label) " +
-                "SELECT day,category,is_system,uid,COUNT(*),MAX(ts),MAX(package),MAX(label) " +
-                "FROM events GROUP BY day,category,is_system,uid",
+            "INSERT INTO agg_cat_uid(day,category,is_system,uid,package,cnt,last_ts,label) " +
+                "SELECT day,category,is_system,uid,COALESCE(package,''),COUNT(*),MAX(ts),MAX(label) " +
+                "FROM events GROUP BY day,category,is_system,uid,COALESCE(package,'')",
         )
         db.execSQL(
-            "INSERT INTO agg_uid_target(day,category,is_system,uid,target,cnt,last_ts) " +
-                "SELECT day,category,is_system,uid,COALESCE(target,''),COUNT(*),MAX(ts) " +
-                "FROM events GROUP BY day,category,is_system,uid,COALESCE(target,'')",
+            "INSERT INTO agg_uid_target(day,category,is_system,uid,package,target,cnt,last_ts) " +
+                "SELECT day,category,is_system,uid,COALESCE(package,''),COALESCE(target,''),COUNT(*),MAX(ts) " +
+                "FROM events GROUP BY day,category,is_system,uid,COALESCE(package,''),COALESCE(target,'')",
         )
         db.execSQL(
             "INSERT INTO agg_target(day,category,is_system,target,cnt,last_ts) " +
@@ -238,10 +279,6 @@ class SqlitePrivacyRepository(
                 "CAST(strftime('%H',ts/1000,'unixepoch','localtime') AS INTEGER),COUNT(*) " +
                 "FROM events GROUP BY day,category,is_system,4",
         )
-        createAggTriggers(db)
-        // 事件索引同步到 v3 版本（补 (category,uid,target) / (category,target,ts)，删无用单列索引）
-        createEventIndexes(db)
-        Log.i(TAG, "migrated v2→v3: daily pre-aggregation backfilled, triggers installed")
     }
 
     /** 老库没有 auto_vacuum=INCREMENTAL；切换需要一次 VACUUM（用 prefs 保证只做一次）。 */
@@ -296,11 +333,12 @@ class SqlitePrivacyRepository(
                 category TEXT NOT NULL,
                 is_system INTEGER NOT NULL,
                 uid INTEGER NOT NULL,
+                -- '' 表示该 uid 下无法归因包名的事件；同一 uid 的不同包名是不同的调用者。
+                package TEXT NOT NULL,
                 cnt INTEGER NOT NULL,
                 last_ts INTEGER NOT NULL,
-                package TEXT,
                 label TEXT,
-                PRIMARY KEY(day, category, is_system, uid)
+                PRIMARY KEY(day, category, is_system, uid, package)
             ) WITHOUT ROWID
             """.trimIndent(),
         )
@@ -311,10 +349,11 @@ class SqlitePrivacyRepository(
                 category TEXT NOT NULL,
                 is_system INTEGER NOT NULL,
                 uid INTEGER NOT NULL,
+                package TEXT NOT NULL,
                 target TEXT NOT NULL,
                 cnt INTEGER NOT NULL,
                 last_ts INTEGER NOT NULL,
-                PRIMARY KEY(day, category, is_system, uid, target)
+                PRIMARY KEY(day, category, is_system, uid, package, target)
             ) WITHOUT ROWID
             """.trimIndent(),
         )
@@ -358,15 +397,15 @@ class SqlitePrivacyRepository(
                     VALUES (new.day,new.category,new.is_system,1,new.ts)
                     ON CONFLICT(day,category,is_system) DO UPDATE SET
                         cnt=cnt+1, last_ts=max(last_ts,new.ts);
-                INSERT INTO agg_cat_uid(day,category,is_system,uid,cnt,last_ts,package,label)
-                    VALUES (new.day,new.category,new.is_system,new.uid,1,new.ts,new.package,new.label)
-                    ON CONFLICT(day,category,is_system,uid) DO UPDATE SET
+                INSERT INTO agg_cat_uid(day,category,is_system,uid,package,cnt,last_ts,label)
+                    VALUES (new.day,new.category,new.is_system,new.uid,coalesce(new.package,''),1,new.ts,new.label)
+                    ON CONFLICT(day,category,is_system,uid,package) DO UPDATE SET
                         cnt=cnt+1, last_ts=max(last_ts,new.ts),
-                        package=coalesce(package,excluded.package),
                         label=coalesce(label,excluded.label);
-                INSERT INTO agg_uid_target(day,category,is_system,uid,target,cnt,last_ts)
-                    VALUES (new.day,new.category,new.is_system,new.uid,coalesce(new.target,''),1,new.ts)
-                    ON CONFLICT(day,category,is_system,uid,target) DO UPDATE SET
+                INSERT INTO agg_uid_target(day,category,is_system,uid,package,target,cnt,last_ts)
+                    VALUES (new.day,new.category,new.is_system,new.uid,coalesce(new.package,''),
+                        coalesce(new.target,''),1,new.ts)
+                    ON CONFLICT(day,category,is_system,uid,package,target) DO UPDATE SET
                         cnt=cnt+1, last_ts=max(last_ts,new.ts);
                 INSERT INTO agg_target(day,category,is_system,target,cnt,last_ts)
                     VALUES (new.day,new.category,new.is_system,coalesce(new.target,''),1,new.ts)
@@ -409,25 +448,59 @@ class SqlitePrivacyRepository(
         buildCategory(category, s)
     }
 
-    override fun observeCaller(category: PrivacyCategory, uid: Int): Flow<CallerDetailState> = observe { s ->
-        buildCaller(category, uid, s)
+    override fun observeCaller(
+        category: PrivacyCategory,
+        uid: Int,
+        packageName: String?,
+    ): Flow<CallerDetailState> = observe { s ->
+        buildCaller(category, uid, packageName, s)
     }
 
     override fun observeTarget(category: PrivacyCategory, target: String): Flow<TargetDetailState> = observe { s ->
         buildTarget(category, target, s)
     }
 
-    /** 全保留期类别时间线，不依赖今日调用者排行榜；同毫秒事件按 id 稳定排序。 */
+    /**
+     * 全保留期类别时间线，不依赖今日调用者排行榜；同毫秒事件按 id 稳定排序。
+     *
+     * 用 (ts, id) 游标而不是 OFFSET：时间线持续写入新事件时，offset 会让「加载更早」出现重复或跳过。
+     * 多取一条用于判断是否还有更早记录，不把这一条暴露给 UI。
+     */
     override suspend fun timelineForCategory(
         category: PrivacyCategory,
+        cursor: TimelineCursor?,
         limit: Int,
-        offset: Int,
-    ): List<PrivacyEvent> = withContext(Dispatchers.IO) {
+    ): TimelinePage = withContext(Dispatchers.IO) {
         val sysFilter = if (settings.snapshot().showSystemApps) "" else " AND is_system=0"
-        queryEvents(
-            SELECT_EVENTS + " WHERE category=?$sysFilter ORDER BY ts DESC,id DESC LIMIT ? OFFSET ?",
-            arrayOf(category.id, limit.coerceIn(1, 500).toString(), offset.coerceAtLeast(0).toString()),
-        )
+        val cursorFilter = if (cursor == null) "" else " AND (ts<? OR (ts=? AND id<?))"
+        val size = limit.coerceIn(1, 500)
+        val args = ArrayList<String>(6)
+        args.add(category.id)
+        if (cursor != null) {
+            args.add(cursor.ts.toString())
+            args.add(cursor.ts.toString())
+            args.add(cursor.id.toString())
+        }
+        args.add((size + 1).toString())
+        val rows = ArrayList<Pair<PrivacyEvent, Long>>(size + 1)
+        runCatching {
+            helper.readableDatabase.rawQuery(
+                SELECT_TIMELINE + " WHERE category=?$cursorFilter$sysFilter " +
+                    "ORDER BY ts DESC,id DESC LIMIT ?",
+                args.toTypedArray(),
+            ).use { c ->
+                while (c.moveToNext()) rows.add(readEvent(c) to c.getLong(13))
+            }
+        }.onFailure { Log.w(TAG, "timelineForCategory failed", it) }
+        val hasMore = rows.size > size
+        val pageRows = if (hasMore) rows.subList(0, size) else rows
+        val nextCursor = if (hasMore && pageRows.isNotEmpty()) {
+            val last = pageRows.last()
+            TimelineCursor(last.first.ts, last.second)
+        } else {
+            null
+        }
+        TimelinePage(pageRows.map { it.first }, nextCursor)
     }
 
     override suspend fun todayEventCount(): Long = withContext(Dispatchers.IO) {
@@ -458,6 +531,8 @@ class SqlitePrivacyRepository(
                             if (e.category == PrivacyCategory.NETWORK) hasNetwork = true
                             val pkg = e.packageName?.takeIf { it.isNotBlank() }
                                 ?: packageResolver?.invoke(e.uid)?.takeIf { it.isNotBlank() }
+                            // 本 App / 旧包名的事件不是被审计对象（含自检事件），不写入历史。
+                            if (isSelfPackage(pkg)) continue
                             statement.clearBindings()
                             statement.bindLong(1, e.ts)
                             statement.bindLong(2, dayStartOf(e.ts))
@@ -643,15 +718,17 @@ class SqlitePrivacyRepository(
             dayArgs,
         )
         db.execSQL(
-            "INSERT INTO agg_cat_uid(day,category,is_system,uid,cnt,last_ts,package,label) " +
-                "SELECT day,category,is_system,uid,COUNT(*),MAX(ts),MAX(package),MAX(label) " +
-                "FROM events WHERE day BETWEEN ? AND ? GROUP BY day,category,is_system,uid",
+            "INSERT INTO agg_cat_uid(day,category,is_system,uid,package,cnt,last_ts,label) " +
+                "SELECT day,category,is_system,uid,COALESCE(package,''),COUNT(*),MAX(ts),MAX(label) " +
+                "FROM events WHERE day BETWEEN ? AND ? " +
+                "GROUP BY day,category,is_system,uid,COALESCE(package,'')",
             dayArgs,
         )
         db.execSQL(
-            "INSERT INTO agg_uid_target(day,category,is_system,uid,target,cnt,last_ts) " +
-                "SELECT day,category,is_system,uid,COALESCE(target,''),COUNT(*),MAX(ts) " +
-                "FROM events WHERE day BETWEEN ? AND ? GROUP BY day,category,is_system,uid,COALESCE(target,'')",
+            "INSERT INTO agg_uid_target(day,category,is_system,uid,package,target,cnt,last_ts) " +
+                "SELECT day,category,is_system,uid,COALESCE(package,''),COALESCE(target,''),COUNT(*),MAX(ts) " +
+                "FROM events WHERE day BETWEEN ? AND ? " +
+                "GROUP BY day,category,is_system,uid,COALESCE(package,''),COALESCE(target,'')",
             dayArgs,
         )
         db.execSQL(
@@ -796,8 +873,9 @@ class SqlitePrivacyRepository(
         val topCallers = HashMap<PrivacyCategory, CallerSummary>()
         runCatching {
             db.rawQuery(
-                "SELECT category, uid, SUM(cnt), MAX(last_ts), MAX(package), MAX(label) FROM agg_cat_uid " +
-                    "WHERE day=?$sysFilter GROUP BY category,uid ORDER BY category ASC, SUM(cnt) DESC",
+                "SELECT category, uid, package, SUM(cnt), MAX(last_ts), MAX(label) FROM agg_cat_uid " +
+                    "WHERE day=?$sysFilter GROUP BY category,uid,package " +
+                    "ORDER BY category ASC, SUM(cnt) DESC",
                 arrayOf(dayStart.toString()),
             ).use { c ->
                 while (c.moveToNext()) {
@@ -805,13 +883,13 @@ class SqlitePrivacyRepository(
                     callerCounts[cat] = (callerCounts[cat] ?: 0) + 1
                     if (!topCallers.containsKey(cat)) {
                         val uid = c.getInt(1)
-                        val pkg = c.getString(4)
+                        val pkg = c.getString(2)?.takeIf { it.isNotBlank() }
                         topCallers[cat] = CallerSummary(
                             uid = uid,
                             packageName = pkg,
                             label = resolveLabel(uid, pkg, c.getString(5)),
-                            count = c.getLong(2),
-                            lastTs = c.getLong(3),
+                            count = c.getLong(3),
+                            lastTs = c.getLong(4),
                             targetCount = 0,
                             isSystem = systemUidPredicate(uid),
                         )
@@ -820,14 +898,13 @@ class SqlitePrivacyRepository(
             }
         }
 
-        // 3) 今日全局应用数（跨类别去重）
+        // 3) 今日全局应用数（跨类别按包名去重；未知包名按 uid 计一个）
         val appCount = runCatching {
-            val uids = HashSet<Int>()
-            db.rawQuery(
-                "SELECT DISTINCT uid FROM agg_cat_uid WHERE day=?$sysFilter",
+            scalarInt(
+                "SELECT COUNT(DISTINCT CASE WHEN package<>'' THEN package ELSE 'uid:'||uid END) " +
+                    "FROM agg_cat_uid WHERE day=?$sysFilter",
                 arrayOf(dayStart.toString()),
-            ).use { c -> while (c.moveToNext()) uids.add(c.getInt(0)) }
-            uids.size
+            )
         }.getOrDefault(0)
 
         // 4) 24h 分布
@@ -933,7 +1010,8 @@ class SqlitePrivacyRepository(
         // P2-7：调用者/目标口径与下方「今日列表」一致
         callersToday = runCatching {
             scalarInt(
-                "SELECT COUNT(DISTINCT uid) FROM agg_cat_uid WHERE day=? AND category=?$sysFilter",
+                "SELECT COUNT(DISTINCT CASE WHEN package<>'' THEN package ELSE 'uid:'||uid END) " +
+                    "FROM agg_cat_uid WHERE day=? AND category=?$sysFilter",
                 arrayOf(dayStart.toString(), category.id),
             )
         }.getOrDefault(0)
@@ -976,53 +1054,60 @@ class SqlitePrivacyRepository(
 
     // ---------------------------------------------------------------- Caller
 
-    private fun buildCaller(category: PrivacyCategory, uid: Int, s: AppSettings): CallerDetailState {
+    private fun buildCaller(
+        category: PrivacyCategory,
+        uid: Int,
+        packageName: String?,
+        s: AppSettings,
+    ): CallerDetailState {
         val dayStart = dayStart()
         val sysFilter = if (s.showSystemApps) "" else " AND is_system=0"
         val db = helper.readableDatabase
+        val aggPkg = packageName.orEmpty()
+        val (pkgWhere, pkgArgs) = packageClause(packageName)
 
         var todayCount = 0L
         var totalCount = 0L
         var lastTs = 0L
-        var pkg: String? = null
         var label: String? = null
         runCatching {
             db.rawQuery(
                 "SELECT COALESCE(SUM(CASE WHEN day=? THEN cnt ELSE 0 END),0), " +
-                    "COALESCE(SUM(cnt),0), MAX(last_ts), MAX(package), MAX(label) " +
-                    "FROM agg_cat_uid WHERE category=? AND uid=?$sysFilter",
-                arrayOf(dayStart.toString(), category.id, uid.toString()),
+                    "COALESCE(SUM(cnt),0), MAX(last_ts), MAX(label) " +
+                    "FROM agg_cat_uid WHERE category=? AND uid=? AND package=?$sysFilter",
+                arrayOf(dayStart.toString(), category.id, uid.toString(), aggPkg),
             ).use { c ->
                 if (c.moveToFirst()) {
                     todayCount = c.getLong(0)
                     totalCount = c.getLong(1)
                     lastTs = c.getLong(2)
-                    pkg = c.getString(3)
-                    label = c.getString(4)
+                    label = c.getString(3)
                 }
             }
         }
         // 首次出现：走 (category,uid,ts) 索引取最早一条
         val firstTs = runCatching {
             db.rawQuery(
-                "SELECT ts FROM events WHERE category=? AND uid=?$sysFilter ORDER BY ts ASC LIMIT 1",
-                arrayOf(category.id, uid.toString()),
+                "SELECT ts FROM events WHERE category=? AND uid=?$pkgWhere$sysFilter ORDER BY ts ASC LIMIT 1",
+                arrayOf(category.id, uid.toString()) + pkgArgs,
             ).use { c -> if (c.moveToFirst()) c.getLong(0) else null }
         }.getOrNull()
-        val targets = runCatching { targetsForCaller(category, uid, sysFilter) }.getOrDefault(emptyList())
+        val targets = runCatching {
+            targetsForCaller(category, uid, aggPkg, sysFilter)
+        }.getOrDefault(emptyList())
         val caller = CallerSummary(
             uid = uid,
-            packageName = pkg,
-            label = resolveLabel(uid, pkg, label),
+            packageName = packageName?.takeIf { it.isNotBlank() },
+            label = resolveLabel(uid, packageName?.takeIf { it.isNotBlank() }, label),
             count = if (todayCount > 0) todayCount else totalCount,
             lastTs = lastTs,
             targetCount = targets.size,
             isSystem = systemUidPredicate(uid),
         )
         val events = queryEvents(
-            SELECT_EVENTS + " WHERE category=? AND uid=?$sysFilter " +
+            SELECT_EVENTS + " WHERE category=? AND uid=?$pkgWhere$sysFilter " +
                 "ORDER BY ts DESC LIMIT $CALLER_EVENT_LIMIT",
-            arrayOf(category.id, uid.toString()),
+            arrayOf(category.id, uid.toString()) + pkgArgs,
         )
         return CallerDetailState(
             category = category,
@@ -1035,6 +1120,17 @@ class SqlitePrivacyRepository(
             events = events,
         )
     }
+
+    /**
+     * 调用者身份由 (uid, package) 决定：同一 uid 下的不同包名（典型是共享 uid 1000 的系统应用）
+     * 是不同调用者。packageName 为空表示「该 uid 下无法归因包名」的事件。
+     */
+    private fun packageClause(packageName: String?): Pair<String, Array<String>> =
+        if (packageName.isNullOrBlank()) {
+            " AND package IS NULL" to emptyArray()
+        } else {
+            " AND package=?" to arrayOf(packageName)
+        }
 
     // ---------------------------------------------------------------- Target
 
@@ -1058,7 +1154,8 @@ class SqlitePrivacyRepository(
         }
         callerCount = runCatching {
             scalarInt(
-                "SELECT COUNT(DISTINCT uid) FROM agg_uid_target WHERE category=? AND target=?$sysFilter",
+                "SELECT COUNT(DISTINCT CASE WHEN package<>'' THEN package ELSE 'uid:'||uid END) " +
+                    "FROM agg_uid_target WHERE category=? AND target=?$sysFilter",
                 arrayOf(category.id, target),
             )
         }.getOrDefault(0)
@@ -1079,7 +1176,7 @@ class SqlitePrivacyRepository(
 
     // ----------------------------------------------------------- 聚合辅助查询
 
-    /** 某类某天调用者列表（读 agg_cat_uid，再补每人的 top target / target 数）。 */
+    /** 某类某天调用者列表（读 agg_cat_uid，按 (uid, package) 拆分，再补每人的 target 数）。 */
     private fun callersFor(
         category: PrivacyCategory,
         dayStart: Long,
@@ -1089,29 +1186,34 @@ class SqlitePrivacyRepository(
         data class Row(val uid: Int, val pkg: String?, val label: String?, val count: Long, val last: Long)
 
         val rows = ArrayList<Row>()
-        // 同一 uid 可能因 is_system 历史差异出现两行（典型：uid=-1 旧数据 is_system=0/1）；
-        // 按 uid 合并，避免 UI 出现重复的「未知调用者」。
         helper.readableDatabase.rawQuery(
-            "SELECT uid, MAX(package), MAX(label), SUM(cnt), MAX(last_ts) FROM agg_cat_uid " +
-                "WHERE day=? AND category=?$sysFilter GROUP BY uid ORDER BY SUM(cnt) DESC LIMIT ?",
+            "SELECT uid, package, MAX(label), SUM(cnt), MAX(last_ts) FROM agg_cat_uid " +
+                "WHERE day=? AND category=?$sysFilter GROUP BY uid,package " +
+                "ORDER BY SUM(cnt) DESC LIMIT ?",
             arrayOf(dayStart.toString(), category.id, limit.toString()),
         ).use { c ->
             while (c.moveToNext()) {
-                rows.add(Row(c.getInt(0), c.getString(1), c.getString(2), c.getLong(3), c.getLong(4)))
+                rows.add(
+                    Row(
+                        uid = c.getInt(0),
+                        pkg = c.getString(1)?.takeIf { it.isNotBlank() },
+                        label = c.getString(2),
+                        count = c.getLong(3),
+                        last = c.getLong(4),
+                    ),
+                )
             }
         }
         if (rows.isEmpty()) return emptyList()
 
-        val targetCounts = HashMap<Int, Int>()
+        val targetCounts = HashMap<Pair<Int, String>, Int>()
         helper.readableDatabase.rawQuery(
-            "SELECT uid, target, SUM(cnt) FROM agg_uid_target WHERE day=? AND category=? AND target<>''$sysFilter " +
-                "GROUP BY uid,target ORDER BY uid ASC, SUM(cnt) DESC",
+            "SELECT uid, package, COUNT(*) FROM agg_uid_target " +
+                "WHERE day=? AND category=? AND target<>''$sysFilter GROUP BY uid,package",
             arrayOf(dayStart.toString(), category.id),
         ).use { c ->
             while (c.moveToNext()) {
-                val uid = c.getInt(0)
-                val target = c.getString(1) ?: continue
-                targetCounts[uid] = (targetCounts[uid] ?: 0) + 1
+                targetCounts[c.getInt(0) to c.getString(1)] = c.getInt(2)
             }
         }
         return rows.map { r ->
@@ -1121,7 +1223,7 @@ class SqlitePrivacyRepository(
                 label = resolveLabel(r.uid, r.pkg, r.label),
                 count = r.count,
                 lastTs = r.last,
-                targetCount = targetCounts[r.uid] ?: 0,
+                targetCount = targetCounts[r.uid to r.pkg.orEmpty()] ?: 0,
                 isSystem = systemUidPredicate(r.uid),
             )
         }
@@ -1147,7 +1249,8 @@ class SqlitePrivacyRepository(
                         count = c.getLong(1),
                         callerCount = runCatching {
                             scalarInt(
-                                "SELECT COUNT(DISTINCT uid) FROM agg_uid_target WHERE day=? AND category=? AND target=?$sysFilter",
+                                "SELECT COUNT(DISTINCT CASE WHEN package<>'' THEN package ELSE 'uid:'||uid END) " +
+                                    "FROM agg_uid_target WHERE day=? AND category=? AND target=?$sysFilter",
                                 arrayOf(dayStart.toString(), category.id, target),
                             )
                         }.getOrDefault(0),
@@ -1163,14 +1266,15 @@ class SqlitePrivacyRepository(
     private fun targetsForCaller(
         category: PrivacyCategory,
         uid: Int,
+        packageName: String,
         sysFilter: String,
     ): List<TargetSummary> {
         val out = ArrayList<TargetSummary>()
         helper.readableDatabase.rawQuery(
             "SELECT target, SUM(cnt) AS c, MAX(last_ts) AS last FROM agg_uid_target " +
-                "WHERE category=? AND uid=? AND target<>''$sysFilter " +
+                "WHERE category=? AND uid=? AND package=? AND target<>''$sysFilter " +
                 "GROUP BY target ORDER BY c DESC LIMIT 40",
-            arrayOf(category.id, uid.toString()),
+            arrayOf(category.id, uid.toString(), packageName),
         ).use { c ->
             while (c.moveToNext()) {
                 val target = c.getString(0) ?: continue
@@ -1193,31 +1297,40 @@ class SqlitePrivacyRepository(
         target: String,
         sysFilter: String,
     ): List<CallerSummary> {
-        data class Row(val uid: Int, val count: Long, val last: Long)
+        data class Row(val uid: Int, val pkg: String?, val count: Long, val last: Long)
 
         val rows = ArrayList<Row>()
         helper.readableDatabase.rawQuery(
-            "SELECT uid, SUM(cnt) AS c, MAX(last_ts) AS last FROM agg_uid_target " +
-                "WHERE category=? AND target=?$sysFilter GROUP BY uid ORDER BY c DESC LIMIT 60",
+            "SELECT uid, package, SUM(cnt) AS c, MAX(last_ts) AS last FROM agg_uid_target " +
+                "WHERE category=? AND target=?$sysFilter GROUP BY uid,package ORDER BY c DESC LIMIT 60",
             arrayOf(category.id, target),
         ).use { c ->
-            while (c.moveToNext()) rows.add(Row(c.getInt(0), c.getLong(1), c.getLong(2)))
+            while (c.moveToNext()) {
+                rows.add(
+                    Row(
+                        uid = c.getInt(0),
+                        pkg = c.getString(1)?.takeIf { it.isNotBlank() },
+                        count = c.getLong(2),
+                        last = c.getLong(3),
+                    ),
+                )
+            }
         }
         if (rows.isEmpty()) return emptyList()
-        // 用 today 的调用者元信息补 package/label（历史事件可能没有聚合元信息时留空）
-        val meta = HashMap<Int, Pair<String?, String?>>()
+        // 用聚合表里的调用者元信息补 label（历史事件可能没有元信息时留空）
+        val meta = HashMap<Pair<Int, String>, String?>()
         helper.readableDatabase.rawQuery(
-            "SELECT uid, MAX(package), MAX(label) FROM agg_cat_uid WHERE category=?$sysFilter GROUP BY uid",
+            "SELECT uid, package, MAX(label) FROM agg_cat_uid WHERE category=?$sysFilter " +
+                "GROUP BY uid,package",
             arrayOf(category.id),
         ).use { c ->
-            while (c.moveToNext()) meta[c.getInt(0)] = c.getString(1) to c.getString(2)
+            while (c.moveToNext()) meta[c.getInt(0) to c.getString(1)] = c.getString(2)
         }
         return rows.map { r ->
-            val (pkg, label) = meta[r.uid] ?: (null to null)
             CallerSummary(
                 uid = r.uid,
-                packageName = pkg,
-                label = resolveLabel(r.uid, pkg, label),
+                packageName = r.pkg,
+                label = resolveLabel(r.uid, r.pkg, meta[r.uid to r.pkg.orEmpty()]),
                 count = r.count,
                 lastTs = r.last,
                 targetCount = 1,
@@ -1260,6 +1373,10 @@ class SqlitePrivacyRepository(
             direction = c.getString(12),
         )
     }
+
+    /** 本 App 自身 / 旧包名的事件不是被审计对象，不写入历史。 */
+    private fun isSelfPackage(pkg: String?): Boolean =
+        pkg == selfPackage || pkg == LEGACY_SELF_PACKAGE
 
     private fun resolveLabel(uid: Int, pkg: String?, stored: String? = null): String {
         if (!stored.isNullOrBlank()) return stored
@@ -1349,8 +1466,11 @@ class SqlitePrivacyRepository(
         private const val TAG = "SqliteRepo"
         private const val DB_NAME = "privprobe.db"
 
-        /** v3：按天预聚合表 + 触发器；逐版本迁移保留历史数据（P1-6）。 */
-        private const val DB_VERSION = 3
+        /** v4：调用者聚合按 (uid, package) 拆分；逐版本迁移保留历史数据（P1-6）。 */
+        private const val DB_VERSION = 4
+
+        /** 1.1.0 之前的包名；改名后旧自检事件仍可能留在库里，统一过滤。 */
+        private const val LEGACY_SELF_PACKAGE = "dev.popsicle.privradar"
 
         private const val DB_PREFS = "privprobe_db"
         private const val KEY_AUTO_VACUUM_DONE = "auto_vacuum_incremental_done"
@@ -1379,10 +1499,15 @@ class SqlitePrivacyRepository(
         /** PRAGMA auto_vacuum 返回值：0=NONE 1=FULL 2=INCREMENTAL。 */
         private const val AUTO_VACUUM_INCREMENTAL = 2
 
-        /** 事件列顺序与 [readEvent] 一一对应，导出 / 时间线 / 详情共用。 */
+        /** 事件列顺序与 [readEvent] 一一对应，导出 / 详情共用。 */
         private const val SELECT_EVENTS =
             "SELECT ts,category,sub_type,uid,pid,package,label,target,detail,source," +
                 "confidence,duration,direction FROM events"
+
+        /** 时间线额外带 id（第 14 列）作为 (ts,id) 游标，供 [timelineForCategory] 翻页。 */
+        private const val SELECT_TIMELINE =
+            "SELECT ts,category,sub_type,uid,pid,package,label,target,detail,source," +
+                "confidence,duration,direction,id FROM events"
 
         private val CREATE_EVENTS = """
             CREATE TABLE events (

@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -46,16 +48,19 @@ fun CallerScreen(
     sources: UiSources,
     category: PrivacyCategory,
     uid: Int,
+    packageName: String?,
     onBack: () -> Unit,
     onOpenTarget: (String) -> Unit,
 ) {
-    val detail by remember(sources, category, uid) {
-        sources.repository.observeCaller(category, uid)
+    val detail by remember(sources, category, uid, packageName) {
+        sources.repository.observeCaller(category, uid, packageName)
     }.collectAsStateWithLifecycle(initialValue = null)
     val settings by sources.settings.state.collectAsStateWithLifecycle()
     val state = detail
     val p = LocalProbePalette.current
     val title = state?.let { Intel.callerLabel(it.caller.packageName, it.caller.label) } ?: "调用者"
+    // 滚动位置随页面状态保存：进入目标详情再返回时停在原处。
+    val listState = rememberLazyListState()
 
     ProbeScaffold(
         title = title,
@@ -67,6 +72,7 @@ fun CallerScreen(
         } else {
             CallerContent(
                 state = state,
+                listState = listState,
                 category = category,
                 maskDomains = settings.maskDomains,
                 onOpenTarget = onOpenTarget,
@@ -78,6 +84,7 @@ fun CallerScreen(
 @Composable
 private fun CallerContent(
     state: CallerDetailState,
+    listState: LazyListState,
     category: PrivacyCategory,
     maskDomains: Boolean,
     onOpenTarget: (String) -> Unit,
@@ -89,6 +96,7 @@ private fun CallerContent(
     val targetTotal = state.targets.sumOf { it.count }.coerceAtLeast(1)
 
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize().navigationBarsPadding(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 24.dp),
     ) {

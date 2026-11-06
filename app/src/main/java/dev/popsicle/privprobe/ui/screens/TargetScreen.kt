@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -45,7 +47,7 @@ fun TargetScreen(
     category: PrivacyCategory,
     target: String,
     onBack: () -> Unit,
-    onOpenCaller: (Int) -> Unit,
+    onOpenCaller: (Int, String?) -> Unit,
 ) {
     val detail by remember(sources, category, target) {
         sources.repository.observeTarget(category, target)
@@ -54,6 +56,8 @@ fun TargetScreen(
     val state = detail
     val p = LocalProbePalette.current
     val display = Intel.displayTarget(target, category, settings.maskDomains)
+    // 滚动位置随页面状态保存：进入调用者详情再返回时停在原处。
+    val listState = rememberLazyListState()
 
     ProbeScaffold(
         title = "目标",
@@ -65,6 +69,7 @@ fun TargetScreen(
         } else {
             TargetContent(
                 state = state,
+                listState = listState,
                 category = category,
                 maskDomains = settings.maskDomains,
                 onOpenCaller = onOpenCaller,
@@ -76,9 +81,10 @@ fun TargetScreen(
 @Composable
 private fun TargetContent(
     state: TargetDetailState,
+    listState: LazyListState,
     category: PrivacyCategory,
     maskDomains: Boolean,
-    onOpenCaller: (Int) -> Unit,
+    onOpenCaller: (Int, String?) -> Unit,
 ) {
     val p = LocalProbePalette.current
     val target = state.target
@@ -90,6 +96,7 @@ private fun TargetContent(
     val callerTotal = state.callers.sumOf { it.count }.coerceAtLeast(1)
 
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize().navigationBarsPadding(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 24.dp),
     ) {
@@ -155,7 +162,7 @@ private fun TargetContent(
                     CallerMiniRow(
                         caller = caller,
                         totalCount = callerTotal,
-                        onClick = { onOpenCaller(caller.uid) },
+                        onClick = { onOpenCaller(caller.uid, caller.packageName) },
                     )
                 }
             }

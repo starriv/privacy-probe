@@ -122,6 +122,15 @@ data class PrivacyEvent(
     }
 }
 
+/** 时间线游标：上一页最后一条的 (ts, id)，用于稳定加载更早的事件（同毫秒事件按 id 排序）。 */
+data class TimelineCursor(val ts: Long, val id: Long)
+
+/** 时间线一页；[nextCursor] 为 null 表示已到保留期最早记录。 */
+data class TimelinePage(
+    val events: List<PrivacyEvent>,
+    val nextCursor: TimelineCursor?,
+)
+
 data class CallerSummary(
     val uid: Int,
     val packageName: String?,

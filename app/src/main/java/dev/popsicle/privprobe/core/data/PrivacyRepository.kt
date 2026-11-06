@@ -6,6 +6,8 @@ import dev.popsicle.privprobe.core.model.DashboardState
 import dev.popsicle.privprobe.core.model.PrivacyCategory
 import dev.popsicle.privprobe.core.model.PrivacyEvent
 import dev.popsicle.privprobe.core.model.TargetDetailState
+import dev.popsicle.privprobe.core.model.TimelineCursor
+import dev.popsicle.privprobe.core.model.TimelinePage
 import java.io.File
 import kotlinx.coroutines.flow.Flow
 
@@ -15,7 +17,8 @@ import kotlinx.coroutines.flow.Flow
  * 约定：
  * - 所有 Flow 在数据变化后必须重新发射（reactive）。
  * - 「今日」以设备本地时区当天 00:00 为界。
- * - 调用者数量按 uid 去重；系统应用是否显示由 SettingsStore.showSystemApps 在聚合层或 UI 层过滤。
+ * - 调用者是 (uid, package) 身份：同一 uid 下不同包名（如共享 uid 1000）分别展示；
+ *   系统应用是否显示由 SettingsStore.showSystemApps 在聚合层或 UI 层过滤。
  */
 interface PrivacyRepository {
 
@@ -23,16 +26,25 @@ interface PrivacyRepository {
 
     fun observeCategory(category: PrivacyCategory): Flow<CategoryDetailState>
 
-    fun observeCaller(category: PrivacyCategory, uid: Int): Flow<CallerDetailState>
+    fun observeCaller(
+        category: PrivacyCategory,
+        uid: Int,
+        packageName: String?,
+    ): Flow<CallerDetailState>
 
     fun observeTarget(category: PrivacyCategory, target: String): Flow<TargetDetailState>
 
-    /** 全保留期类别时间线，按时间倒序分页，不受今日排行榜限制。 */
+    /**
+     * 全保留期类别时间线，按时间倒序取一页，不受今日排行榜限制。
+     *
+     * [cursor] 为上一页的 [TimelinePage.nextCursor]；传 null 取最新一页。
+     * 用 (ts, id) 游标而不是 offset：新事件持续写入时不会造成翻页重复/跳过。
+     */
     suspend fun timelineForCategory(
         category: PrivacyCategory,
+        cursor: TimelineCursor? = null,
         limit: Int = 120,
-        offset: Int = 0,
-    ): List<PrivacyEvent> = emptyList()
+    ): TimelinePage = TimelinePage(emptyList(), null)
 
     /** 通知使用的轻量今日计数，遵循系统应用过滤。 */
     suspend fun todayEventCount(): Long

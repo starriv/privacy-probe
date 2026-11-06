@@ -16,8 +16,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
@@ -72,7 +74,7 @@ import kotlinx.coroutines.launch
 fun DashboardScreen(
     sources: UiSources,
     onOpenCategory: (PrivacyCategory) -> Unit,
-    onOpenCaller: (PrivacyCategory, Int) -> Unit,
+    onOpenCaller: (PrivacyCategory, Int, String?) -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     val state by remember(sources) { sources.repository.observeDashboard() }
@@ -84,6 +86,8 @@ fun DashboardScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val p = LocalProbePalette.current
+    // 滚动位置随页面状态保存：进入大类 / 调用者详情再返回，或切底部 tab 回来时都不回到顶部。
+    val listState = rememberLazyListState()
 
     ProbeScaffold(
         title = "隐私探针",
@@ -113,6 +117,7 @@ fun DashboardScreen(
             val enabledProbeCount = ProbeId.entries.count { settings.probes[it] == true }
             DashboardContent(
                 state = current,
+                listState = listState,
                 preview = sources.preview,
                 maskDomains = settings.maskDomains,
                 running = running,
@@ -133,6 +138,7 @@ fun DashboardScreen(
 @Composable
 private fun DashboardContent(
     state: DashboardState,
+    listState: LazyListState,
     preview: Boolean,
     maskDomains: Boolean,
     running: Boolean,
@@ -141,7 +147,7 @@ private fun DashboardContent(
     enabledProbeCount: Int,
     probeCount: Int,
     onOpenCategory: (PrivacyCategory) -> Unit,
-    onOpenCaller: (PrivacyCategory, Int) -> Unit,
+    onOpenCaller: (PrivacyCategory, Int, String?) -> Unit,
     onOpenSettings: () -> Unit,
     onRefreshRoot: () -> Unit,
 ) {
@@ -154,6 +160,7 @@ private fun DashboardContent(
     val hourly = remember(state.categories) { mergeHourly(state.categories) }
 
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 24.dp),
     ) {
@@ -306,7 +313,7 @@ private fun DashboardContent(
                     EventRow(
                         event = event,
                         maskDomains = maskDomains,
-                        onClick = { onOpenCaller(event.category, event.uid) },
+                        onClick = { onOpenCaller(event.category, event.uid, event.packageName) },
                     )
                     if (index != recent.lastIndex) Hairline()
                 }

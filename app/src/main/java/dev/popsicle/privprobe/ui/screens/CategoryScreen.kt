@@ -4,28 +4,29 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.produceState
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.repeatOnLifecycle
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import kotlinx.coroutines.CancellationException
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.popsicle.privprobe.core.model.PrivacyCategory
 import dev.popsicle.privprobe.core.model.PrivacyEvent
+import dev.popsicle.privprobe.core.model.TimelineCursor
 import dev.popsicle.privprobe.ui.UiSources
 import dev.popsicle.privprobe.ui.components.CallerRow
 import dev.popsicle.privprobe.ui.components.EmptyState
@@ -33,12 +34,15 @@ import dev.popsicle.privprobe.ui.components.Hairline
 import dev.popsicle.privprobe.ui.components.KpiCard
 import dev.popsicle.privprobe.ui.components.KpiTileData
 import dev.popsicle.privprobe.ui.components.LoadingState
+import dev.popsicle.privprobe.ui.components.OutlineButton
 import dev.popsicle.privprobe.ui.components.ProbeScaffold
 import dev.popsicle.privprobe.ui.components.RiskChip
 import dev.popsicle.privprobe.ui.components.SectionTitle
 import dev.popsicle.privprobe.ui.components.SegmentedTabs
 import dev.popsicle.privprobe.ui.components.TargetRow
 import dev.popsicle.privprobe.ui.components.TimelineRow
+import dev.popsicle.privprobe.ui.theme.LocalProbePalette
+import dev.popsicle.privprobe.ui.theme.ProbeText
 import dev.popsicle.privprobe.ui.util.Format
 
 /**
@@ -49,17 +53,25 @@ fun CategoryScreen(
     sources: UiSources,
     category: PrivacyCategory,
     onBack: () -> Unit,
-    onOpenCaller: (Int) -> Unit,
+    onOpenCaller: (Int, String?) -> Unit,
     onOpenTarget: (String) -> Unit,
 ) {
     val detail by remember(sources, category) { sources.repository.observeCategory(category) }
         .collectAsStateWithLifecycle(initialValue = null)
     val settings by sources.settings.state.collectAsStateWithLifecycle()
     val state = detail
-    var tab by remember(category) { mutableIntStateOf(0) }
+    // 分段 tab / 列表滚动随页面状态保存：进目标或调用者详情再返回时原样恢复。
+    var tab by rememberSaveable { mutableIntStateOf(0) }
     val maskDomains = settings.maskDomains
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
-    var page by remember(category, settings.showSystemApps) { mutableIntStateOf(0) }
+    val listState = rememberLazyListState()
+    val p = LocalProbePalette.current
+    // 时间线按游标增量加载：首屏 120 条实时刷新，点「加载更早」后冻结首屏，避免历史列表因新事件跳动。
+    var timeline by remember(category) { mutableStateOf(emptyList<PrivacyEvent>()) }
+    var timelineCursor by remember(category) { mutableStateOf<TimelineCursor?>(null) }
+    var timelineHasMore by remember(category) { mutableStateOf(false) }
+    var timelinePaged by remember(category) { mutableStateOf(false) }
+    var timelineLoadingMore by remember(category) { mutableStateOf(false) }
+    var timelineLoadRequests by remember(category) { mutableIntStateOf(0) }
 
     ProbeScaffold(
         title = category.title,
@@ -70,28 +82,56 @@ fun CategoryScreen(
             LoadingState()
         } else {
             val current = state
-            val timeline by produceState(
-                initialValue = emptyList<PrivacyEvent>(), category, tab, page, settings.showSystemApps, lifecycle,
-            ) {
-                value = emptyList()
-                if (tab != 2) return@produceState
-                lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                    while (true) {
-                        try {
-                            value = sources.repository.timelineForCategory(category, 120, page * 120)
-                        } catch (ce: CancellationException) {
-                            throw ce
-                        } catch (_: Exception) {
-                            // 暂时读库失败保留上一次结果。
+            // 首屏 + 实时刷新：只在用户还没加载更早记录时运行。
+            LaunchedEffect(category, tab, settings.showSystemApps) {
+                if (tab != 2) return@LaunchedEffect
+                timeline = emptyList()
+                timelineCursor = null
+                timelineHasMore = false
+                timelinePaged = false
+                while (!timelinePaged) {
+                    try {
+                        val page = sources.repository.timelineForCategory(
+                            category, null, TIMELINE_PAGE_SIZE,
+                        )
+                        if (!timelinePaged) {
+                            timeline = page.events
+                            timelineCursor = page.nextCursor
+                            timelineHasMore = page.nextCursor != null
                         }
-                        kotlinx.coroutines.delay(2_000)
+                    } catch (ce: kotlinx.coroutines.CancellationException) {
+                        throw ce
+                    } catch (_: Exception) {
+                        // 暂时读库失败保留上一次结果。
                     }
+                    kotlinx.coroutines.delay(2_000)
+                }
+            }
+            // 加载更早：用上一页游标取 120 条追加到列表尾部。
+            LaunchedEffect(timelineLoadRequests) {
+                if (timelineLoadRequests == 0 || tab != 2) return@LaunchedEffect
+                timelinePaged = true
+                timelineLoadingMore = true
+                try {
+                    val page = sources.repository.timelineForCategory(
+                        category, timelineCursor, TIMELINE_PAGE_SIZE,
+                    )
+                    timeline = timeline + page.events
+                    timelineCursor = page.nextCursor
+                    timelineHasMore = page.nextCursor != null
+                } catch (ce: kotlinx.coroutines.CancellationException) {
+                    throw ce
+                } catch (_: Exception) {
+                    // 失败保留当前列表，按钮可重试。
+                } finally {
+                    timelineLoadingMore = false
                 }
             }
             val callerTotal = current.callers.sumOf { it.count }.coerceAtLeast(1)
             val targetTotal = current.targets.sumOf { it.count }.coerceAtLeast(1)
 
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize().navigationBarsPadding(),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 24.dp),
             ) {
@@ -141,7 +181,7 @@ fun CategoryScreen(
                                         category = category,
                                         maskDomains = maskDomains,
                                         totalCount = callerTotal,
-                                        onClick = { onOpenCaller(caller.uid) },
+                                        onClick = { onOpenCaller(caller.uid, caller.packageName) },
                                     )
                                 }
                             }
@@ -176,13 +216,6 @@ fun CategoryScreen(
                     }
 
                     else -> {
-                        item {
-                            Row {
-                                TextButton(onClick = { page-- }, enabled = page > 0) { Text("上一页") }
-                                TextButton(onClick = { page++ }, enabled = timeline.size == 120) { Text("下一页") }
-                                Text("第 ${page + 1} 页 · 保留期内记录")
-                            }
-                        }
                         if (timeline.isEmpty()) {
                             item {
                                 EmptyState(
@@ -203,6 +236,25 @@ fun CategoryScreen(
                                     if (index != timeline.lastIndex) Hairline()
                                 }
                             }
+                            item {
+                                Spacer(Modifier.height(16.dp))
+                                if (timelineHasMore) {
+                                    OutlineButton(
+                                        text = if (timelineLoadingMore) "加载中…" else "加载更早",
+                                        onClick = { timelineLoadRequests++ },
+                                        enabled = !timelineLoadingMore,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                } else {
+                                    Text(
+                                        text = "已加载全部 ${timeline.size} 条",
+                                        style = ProbeText.Meta,
+                                        color = p.muted,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -210,3 +262,5 @@ fun CategoryScreen(
         }
     }
 }
+
+private const val TIMELINE_PAGE_SIZE = 120

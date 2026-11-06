@@ -80,11 +80,22 @@ class SqlitePrivacyRepositoryTest {
         val old = noon - 86_400_000
         repo.insertEvents((0..149).map { event(it, 12000 + it, old) })
         assertTrue(repo.observeCategory(PrivacyCategory.NETWORK).first().callers.isEmpty())
-        val first = repo.timelineForCategory(PrivacyCategory.NETWORK, 120, 0)
-        val second = repo.timelineForCategory(PrivacyCategory.NETWORK, 120, 120)
-        assertEquals(120, first.size)
-        assertEquals(30, second.size)
-        assertEquals(150, (first + second).map { it.uid }.toSet().size)
+        val first = repo.timelineForCategory(PrivacyCategory.NETWORK, null, 120)
+        val second = repo.timelineForCategory(PrivacyCategory.NETWORK, first.nextCursor, 120)
+        assertEquals(120, first.events.size)
+        assertEquals(30, second.events.size)
+        assertEquals(150, (first.events + second.events).map { it.uid }.toSet().size)
+        assertNull(second.nextCursor)
+    }
+
+    @Test fun timelineCursorPagesThroughEqualTimestampEvents() = runBlocking {
+        repo.insertEvents((0..149).map { event(it, 12000 + it, noon) })
+        val first = repo.timelineForCategory(PrivacyCategory.NETWORK, null, 120)
+        val second = repo.timelineForCategory(PrivacyCategory.NETWORK, first.nextCursor, 120)
+        assertEquals(120, first.events.size)
+        assertEquals(30, second.events.size)
+        assertEquals(150, (first.events + second.events).map { it.uid }.toSet().size)
+        assertNull(second.nextCursor)
     }
 
     @Test fun capacityTrimsEqualTimestampRowsAndRebuildsAggregates() = runBlocking {
@@ -133,5 +144,110 @@ class SqlitePrivacyRepositoryTest {
         observed.await()
         assertTrue("refresh must arrive during sustained writes", writer.isActive)
         writer.cancelAndJoin()
+    }
+
+    // ------------------------------------------------- v4 数据口径修复
+
+    @Test fun sharedUidCallersAreSplitByPackage() = runBlocking {
+        repo.insertEvents(
+            listOf(
+                event(0, 1000).copy(packageName = "com.miui.powerkeeper", appLabel = "电量和性能"),
+                event(1, 1000).copy(packageName = "com.miui.powerkeeper", appLabel = "电量和性能"),
+                event(2, 1000).copy(packageName = "com.xiaomi.barrage", appLabel = "弹幕通知"),
+                event(3, 1000),
+            ),
+        )
+        val category = repo.observeCategory(PrivacyCategory.NETWORK).first()
+        assertEquals(3, category.callerCount)
+        val byPackage = category.callers.associate { it.packageName.orEmpty() to it.count }
+        assertEquals(2L, byPackage["com.miui.powerkeeper"])
+        assertEquals(1L, byPackage["com.xiaomi.barrage"])
+        assertEquals(1L, byPackage[""])
+
+        val power = repo.observeCaller(PrivacyCategory.NETWORK, 1000, "com.miui.powerkeeper").first()
+        assertEquals("电量和性能", power.caller.label)
+        assertEquals(2L, power.totalCount)
+        assertEquals(2, power.events.size)
+        assertTrue(power.events.all { it.packageName == "com.miui.powerkeeper" })
+
+        val unknown = repo.observeCaller(PrivacyCategory.NETWORK, 1000, null).first()
+        assertEquals(1L, unknown.totalCount)
+        assertEquals(1, unknown.events.size)
+        assertNull(unknown.events.single().packageName)
+
+        val dashboard = repo.observeDashboard().first()
+        assertEquals(3, dashboard.appCount)
+        val network = dashboard.categories.first { it.category == PrivacyCategory.NETWORK }
+        assertEquals(3, network.callerCount)
+        assertEquals("com.miui.powerkeeper", network.topCaller?.packageName)
+    }
+
+    @Test fun selfAndLegacyPackageEventsAreNotPersisted() = runBlocking {
+        repo.insertEvents(
+            listOf(
+                event(0).copy(packageName = context.packageName, uid = 12000),
+                event(1).copy(packageName = "dev.popsicle.privradar", uid = 12000),
+                event(2).copy(packageName = "com.example.app", uid = 12000),
+            ),
+        )
+        assertEquals(1L, repo.totalEventCount())
+        assertEquals(1L, repo.todayEventCount())
+        val category = repo.observeCategory(PrivacyCategory.NETWORK).first()
+        assertEquals(1, category.callers.size)
+        assertEquals("com.example.app", category.callers.single().packageName)
+    }
+
+    @Test fun v3MigrationPurgesProbeNoiseAndSplitsSharedUidCallers() = runBlocking {
+        repo.insertEvents(
+            listOf(
+                event(0, 1000).copy(packageName = "com.miui.powerkeeper", appLabel = "电量和性能"),
+                event(1, 1000).copy(packageName = "com.xiaomi.barrage", appLabel = "弹幕通知"),
+            ),
+        )
+        val selfUid = context.applicationInfo.uid
+        val noiseTs = noon + 20_000L
+        repo.close()
+        db().use { d ->
+            insertRawEvent(d, noiseTs, PrivacyCategory.CAMERA, "device_open", 1047, "cameraserver", "KERNEL_TRACE", 1, "test-cam")
+            insertRawEvent(d, noiseTs + 1, PrivacyCategory.NETWORK, "dns_q", selfUid, context.packageName, "PACKET", 0, "test-self")
+            insertRawEvent(d, noiseTs + 2, PrivacyCategory.NETWORK, "dns_q", selfUid, "dev.popsicle.privradar", "PACKET", 0, "test-legacy")
+            d.version = 3
+        }
+        repo = SqlitePrivacyRepository(context, settings)
+        // 相机自噪 + 自身/旧包名事件已清理
+        assertEquals(2L, repo.totalEventCount())
+        assertEquals(0L, repo.observeCategory(PrivacyCategory.CAMERA).first().countToday)
+        val category = repo.observeCategory(PrivacyCategory.NETWORK).first()
+        assertEquals(2, category.callerCount)
+        assertEquals(
+            setOf("com.miui.powerkeeper", "com.xiaomi.barrage"),
+            category.callers.mapNotNull { it.packageName }.toSet(),
+        )
+        val power = repo.observeCaller(PrivacyCategory.NETWORK, 1000, "com.miui.powerkeeper").first()
+        assertEquals(1L, power.totalCount)
+        assertEquals("电量和性能", power.caller.label)
+    }
+
+    private fun insertRawEvent(
+        db: SQLiteDatabase,
+        ts: Long,
+        category: PrivacyCategory,
+        subType: String,
+        uid: Int,
+        pkg: String?,
+        source: String,
+        isSystem: Int,
+        dedupeKey: String,
+    ) {
+        val zone = java.time.ZoneId.systemDefault()
+        val day = java.time.Instant.ofEpochMilli(ts).atZone(zone).toLocalDate()
+            .atStartOfDay(zone).toInstant().toEpochMilli()
+        db.execSQL(
+            "INSERT INTO events " +
+                "(ts,day,category,sub_type,uid,pid,package,label,target,detail,source,source_rank," +
+                "confidence,duration,direction,is_system,dedupe_key) " +
+                "VALUES (?,?,?,?,?,NULL,?,NULL,'raw.test',NULL,?,0,70,NULL,NULL,?,?)",
+            arrayOf<Any?>(ts, day, category.id, subType, uid, pkg, source, isSystem, dedupeKey),
+        )
     }
 }

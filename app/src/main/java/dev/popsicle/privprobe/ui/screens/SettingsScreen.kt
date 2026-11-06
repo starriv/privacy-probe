@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -112,6 +113,8 @@ fun SettingsScreen(sources: UiSources) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
+    // 滚动位置随页面状态保存：切到总览再切回配置时停在原处。
+    val listState = rememberLazyListState()
 
     var selfTesting by remember { mutableStateOf(false) }
     var refreshing by remember { mutableStateOf(false) }
@@ -279,6 +282,7 @@ fun SettingsScreen(sources: UiSources) {
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 24.dp),
             ) {

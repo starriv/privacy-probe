@@ -1,0 +1,242 @@
+package	label_zh	label_en	category	function	recommendation	reason	deps
+android	系统框架资源包（framework-res）	Android Framework Resources	framework	Android 框架层资源包：主题、颜色、字符串、权限声明、drawable 等，是全部系统应用与第三方应用的资源基线。	KEEP	系统核心（/system/framework/framework-res.apk，uid 1000，PERSISTENT）。任何卸载/冻结都会导致系统无法启动（bootloop）或资源解析失败，绝不可动。	全部系统 UI 与应用；卸载=直接变砖
+android.aosp.overlay	AOSP 框架资源覆盖（RRO）	AOSP Framework Res Overlay	overlay	product 分区 RRO，对 framework-res 的 AOSP 定制资源值做覆盖（激活状态）。	KEEP	属于正在生效的框架资源覆盖，禁用会使资源回退基线、导致界面/布局/配置异常；RRO 一般也不允许 pm uninstall。	系统 UI、设置、桌面等全部 framework 资源消费者
+android.aosp.overlay.telephony	AOSP 电话框架资源覆盖（RRO）	AOSP Framework Telephony Res Overlay	overlay	对 Telephony 框架资源（信号图标、运营商显示等）的 AOSP 覆盖。	KEEP	激活中的 telephony 资源覆盖，禁用会导致状态栏信号/运营商相关资源错乱。	SystemUI 状态栏、电话/短信界面
+android.auto_generated_characteristics_rro	自动生成特性 RRO（nosdcard）	Auto-generated Characteristics RRO	overlay	编译期自动生成的 framework-res 特性覆盖（nosdcard 设备特性），影响存储/资源特性开关。	KEEP	属于 framework 基线配置的自动生成覆盖，改动会改变系统资源特性，风险不可控。	framework 资源特性（存储、配置）
+android.ext.services	扩展系统服务（Mainline 模块）	ExtServices (Mainline module)	apex	AOSP Mainline 模块，提供通知排序/去重、自动填充、文本分类、存储统计、输入法等系统扩展服务。	KEEP	/apex 内模块包（APEX），Settings 与 SystemUI 的后台逻辑依赖；冻结会导致通知智能排序、自动填充、文本分类等功能异常。	通知管理、自动填充、Settings/SystemUI 后台服务
+android.miui.home.launcher.res	小米桌面资源覆盖（RRO）	MIUI Home Launcher Res Overlay	overlay	为小米桌面（com.miui.home）提供资源覆盖（布局、图标、动画参数）。	KEEP	激活中的桌面资源 RRO，禁用会导致桌面布局/图标资源缺失甚至启动器崩溃。	小米桌面（com.miui.home）
+android.miui.overlay	MIUI 框架资源覆盖（RRO）	MIUI Framework Res Overlay	overlay	对 framework-res 的 MIUI/HyperOS 定制资源覆盖（颜色、圆角、动画、字符串）。	KEEP	HyperOS 视觉与交互的资源基础，激活中；禁用会造成系统界面样式错乱。	SystemUI、设置、桌面等全部 framework 资源消费者
+android.miui.overlay.telephony	MIUI 电话框架资源覆盖（RRO）	MIUI Framework Telephony Res Overlay	overlay	对 Telephony 框架资源的 MIUI 定制覆盖。	KEEP	激活中的 telephony 资源覆盖，禁用会影响信号/运营商/通话相关界面资源。	SystemUI、电话/短信界面
+android.overlay.common	框架通用资源覆盖（RRO）	FrameworksResCommon_Sys	overlay	厂商通用 framework 资源覆盖（机型通用部分）。	KEEP	激活中的框架资源 RRO；禁用会回退默认资源，UI 表现异常。	系统 UI 与全部框架资源消费者
+android.overlay.target	框架目标资源覆盖（odm RRO）	FrameworksResTarget_Vendor	overlay	odm 分区的机型目标资源覆盖，为具体硬件形态（屏幕、圆角）提供参数。	KEEP	与具体机型硬件形态绑定的资源覆盖；缺失会导致显示/布局参数错误。	显示与 UI 布局参数
+android.qvaoverlay.common	QVA 通用框架资源覆盖（RRO）	FrameworksResCommonQva_Sys	overlay	QVA（厂商/高通定制方案）通用 framework 资源覆盖。	KEEP	激活中的框架资源 RRO，禁用可能引发 UI 资源回退异常；收益为零，不建议动。	系统 UI 与框架资源
+com.android.DeviceAsWebcam	手机当摄像头（UVC）	Device as Webcam	framework	把手机作为 USB UVC 摄像头被电脑识别（开发者选项/USB 首选项中的功能）。	CAUTION	非核心系统服务，卸载只失去“手机当摄像头”功能；但不确定 HyperOS 是否在相机/投屏流程中复用该组件，保守冻结而非卸载。	USB 连接电脑时的“网络摄像头”功能
+com.android.adservices.api	广告服务（Privacy Sandbox）	Ad Services	apex	Google Privacy Sandbox/广告 ID 基础设施：提供 Advertising ID、Topics、FLEDGE/Protected Audience 等服务。	REMOVE_PRIVACY	纯广告基础设施（无界面、无系统核心依赖），属“优先移除”的隐私类组件。/apex 内应用，建议先 pm disable-user 观察；风险：依赖广告 ID 的应用/推广 SDK 会拿不到 ID（一般降级为全 0，不崩溃），不影响开机、通话、权限等系统功能；部分厂商定制广告位可能异常。	应用内广告标识符/归因；不影响系统稳定性、Wi-Fi、通话、OTA
+com.android.apps.tag	NFC 标签读写	NFC Tags	other	AOSP 的 NFC 标签应用：碰触 NFC 标签时展示/写入 NDEF 内容（名片、网址等）。	REMOVE	仅提供“读取/写入 NFC 标签内容”的界面，NFC 支付、门禁卡模拟、NFC 开关均不依赖它；移除后碰标签无内容展示，无系统风险。	碰 NFC 标签时的内容展示；不影响 NFC 支付/门禁/开关
+com.android.appsearch.aiseal.config	AppSearch 加密配置 APK	AppSearch AiSeal Config	framework	Local Search/AppSearch 模块的 AISeal 加密配置 APK（仅配置，无代码逻辑）。	KEEP	体积极小、无后台，属搜索基础设施的配置包；动它没有收益，反而可能影响应用搜索/系统搜索的加密索引。	系统搜索/应用内搜索索引（AppSearch）
+com.android.appsearch.apk	应用搜索（AppSearch/Mainline）	AppSearch (Mainline module)	apex	Mainline 版 Local Search/AppSearch：为系统与第三方应用提供本地索引与搜索 API（设置、桌面搜索依赖）。	KEEP	/apex 内 Mainline 模块，SystemUI/Launcher/Settings 的搜索功能与第三方 AppSearch 用户依赖；冻结会导致搜索索引失效。	桌面/设置全局搜索、第三方应用 AppSearch 接口
+com.android.avatarpicker	头像选择器	Avatar Picker	framework	系统头像选择器：为联系人等选择/裁剪头像的系统组件。	CAUTION	非核心，卸载后“选择头像”流程可能不可用（联系人头像、账号头像）；不确定 HyperOS 是否已由其他应用接管该 intent，收益低，保守保留。	联系人/账号头像选择界面
+com.android.backupconfirm	备份恢复确认（ADB backup）	Backup Restore Confirmation	framework	ADB backup/restore 时弹出确认框的组件。	CAUTION	移除只影响 adb backup/restore 确认流程（UAD：会破坏 ADB 备份），不影响手机日常备份；属系统备份链，收益极低。	adb backup/restore 确认弹窗
+com.android.bankabc	中国农业银行手机银行（用户自装）	Agricultural Bank of China (ABC) App (user-installed)	other	中国农业银行（ABC）手机银行客户端。位于 /data/app，无 SYSTEM 标记，installer=小米应用商店，firstInstallTime=2026-01-04，属用户自行安装的第三方应用。	REMOVE	非系统预装、非系统依赖，可按普通应用直接卸载（不需要--user 0）；与本设备系统精简无关，若机主在用请忽略。	无系统影响；仅失去该银行 App
+com.android.bips	内置打印服务（IPP）	Built-in Print Service	other	AOSP 内置打印服务插件，直接向 IPP/网络打印机输出，配合 Print Spooler 使用。	REMOVE	打印插件类组件，无系统依赖、非 PERSISTENT；移除后“打印”功能失去内置服务（可装厂商/第三方打印插件替代），不会影响开机/网络/蓝牙。任务口径把冗余打印服务列为可移除。	系统打印功能（可被第三方打印服务替代）
+com.android.bluetooth	蓝牙服务（Mainline 模块）	Bluetooth (Mainline module)	apex	/apex 内蓝牙协议栈配套应用（Bluetooth APK），提供蓝牙设置界面、配对/设备管理、蓝牙权限对话框。	KEEP	蓝牙核心组件（APEX 模块），删除/冻结会导致蓝牙开关、配对、耳机/车机连接异常，甚至 SystemUI 蓝牙面板崩溃。	蓝牙开关、配对、耳机/手环/车机、蓝牙共享网络
+com.android.bluetooth.overlay	蓝牙资源覆盖（RRO）	AOSP Bluetooth Res Overlay	overlay	蓝牙服务/设置界面的资源覆盖。	KEEP	激活中的蓝牙资源 RRO，禁用可能导致蓝牙界面资源缺失；无收益。	蓝牙设置与配对界面
+com.android.bluetoothmidiservice	蓝牙 MIDI 服务	Bluetooth MIDI Service	other	通过蓝牙 LE 传输 MIDI 协议的系统服务（供音乐类 App 连接 MIDI 设备）。	REMOVE	仅音乐制作场景使用，无系统依赖、无后台常驻（按需绑定）；移除后蓝牙 MIDI 设备不可用，安全。	蓝牙 MIDI 乐器/控制器连接
+com.android.browser	小米浏览器	MIUI Browser	other	小米/HyperOS 自带浏览器（原始系统版在 /product/priv-app/MIUIBrowser，已更新到 /data；installer=null，属系统预装）。是默认浏览器候选，并提供 CustomTabs。	CAUTION	系统预装浏览器，非系统核心：卸载只失去浏览器（可改用 Chrome/Edge），不会 bootloop；但 UAD 及公开报道指出小米浏览器存在隐私/数据采集争议，偏好隐私的用户可考虑替换。风险：部分系统/第三方链接用 CustomTabs 打开时可能回退到其他浏览器或提示无应用。	默认浏览器、应用内 CustomTabs 打开网页；卸载后部分链接可能无处理者
+com.android.calendar	小米日历	MIUI Calendar	other	系统日历应用（AOSP 包名，实际为小米日历，版本 18.0.2.0；位于 /data/app，无 SYSTEM 标记，属首次开机预置的可卸载应用）。	CAUTION	预置但可卸载的应用（不是系统依赖），卸载/冻结只失去日历本身，不影响开机与同步服务（日历数据 provider 为 com.android.providers.calendar，需保留）；若机主使用日历则保留。	日历界面；日历数据仍由 CalendarProvider 提供
+com.android.calllogbackup	通话记录备份/恢复	Call Log Backup/Restore	provider	把通话记录备份到云/本地并在恢复时写回的后台组件（AOSP CallLogProvider 配套）。	REMOVE	UAD 标记 Recommended 可移除：仅影响通话记录的备份/恢复，不影响拨号、通话、通讯录与系统稳定性；国内 ROM 的换机备份多由小米云服务承担。	通话记录云备份/恢复（Google 备份链）
+com.android.camera	小米相机	MIUI Camera	other	HyperOS 相机应用（/product/priv-app/MiuiCamera），提供拍照/录像/专业模式/扫码等。	KEEP	系统 핵心相机应用与相机 HAL 交互入口；卸载会导致相机完全不可用、扫码/人脸等依赖相机的功能异常。	拍照/录像/扫码/相机权限相关功能；卸载=相机不可用
+com.android.cameraextensions	相机扩展代理	Camera Extensions Proxy	framework	CameraX/OEM 相机扩展（Extension）代理服务，为第三方相机 App 提供厂商特效能力。	KEEP	系统相机扩展服务，第三方相机/美颜类应用通过它调用厂商扩展；冻结会导致这些应用崩溃或功能缺失。	第三方相机应用的扩展能力（HDR/夜景/人像）
+com.android.captiveportallogin	公共 Wi-Fi 认证页	Captive Portal Login	other	连接需要网页认证的公共 Wi-Fi（酒店/机场/校园网）时弹出的认证窗口。	KEEP	无它则公共 Wi-Fi 无法完成认证（表现为“已连接但无网络”）；属网络栈依赖，不可动。	公共 Wi-Fi 认证上网
+com.android.carrierconfig	运营商配置	Carrier Config	telephony	按 SIM 卡 MCC/MNC 动态下发运营商配置（VoLTE、彩信、漫游、APN 等）。	KEEP	电话/短信/VoLTE/漫游行为依赖运营商配置；删除会导致运营商适配失效（无 VoLTE、彩信异常等）。	VoLTE/VoWiFi、彩信、漫游、APN
+com.android.carrierconfig.overlay.common	运营商配置资源覆盖（RRO）	CarrierConfig Res Common	overlay	运营商配置的资源覆盖。	KEEP	激活中的 RRO，禁用会导致运营商配置默认值异常；无收益。	运营商配置默认值
+com.android.carrierdefaultapp	运营商默认应用	Carrier Default App	telephony	运营商需求的默认处理应用（如欠费/OOB 时打开运营商页面、重定向）。	KEEP	运营商定制流程依赖，删除后部分运营商卡会出现异常跳转或提示缺失。	运营商欠费/激活引导页面
+com.android.cellbroadcastreceiver	小区广播（应急预警）	Cell Broadcast Receiver	telephony	接收小区广播消息的应用（地震预警、应急警报、政府公告）。国内“地震预警”功能依赖它。	KEEP	国内地震预警/应急广播强依赖；删除会失去地震预警等生命安全功能，并可能导致系统服务报错。	地震预警、应急警报、政府公告
+com.android.cellbroadcastreceiver.overlay.common	小区广播资源覆盖（RRO）	CellBroadcastReceiver Res Common	overlay	小区广播应用资源覆盖（界面/声音/提示文本）。	KEEP	激活中的 RRO；禁用会影响预警消息的展示/提示音资源。	地震预警/应急警报的展示
+com.android.cellbroadcastservice	小区广播服务	Cell Broadcast Service	telephony	负责从 modem 接收并分发小区广播消息的系统服务（/apex 之外的主线模块化 APK）。	KEEP	地震预警/应急广播链路的接收端；冻结会导致预警消息无法接收，系统日志报错。	地震预警、应急广播接收
+com.android.certinstaller	证书安装器	Certificate Installer	security	安装/查看/移除用户 CA 证书与客户端证书的系统组件（设置→安全→加密与凭据）。	KEEP	企业 Wi-Fi/VPN/抓包调试依赖证书安装；删除后无法安装证书，且属安全组件，不建议动。	证书安装、企业 Wi-Fi/VPN、用户 CA 管理
+com.android.companiondevicemanager	伴生设备管理	Companion Device Manager	framework	配对与管理手表/耳机/车机等伴生设备的系统服务（Android 12+ 的 CDM）。	KEEP	手环/手表/耳机等配对流程与部分系统功能依赖；删除会导致配对失败或相关应用崩溃。	手表/手环/耳机配对与伴生设备权限
+com.android.companiondevicemanager.auto_generated_characteristics_rro	伴生设备管理特性 RRO	CompanionDeviceManager Characteristics RRO	overlay	伴生设备管理模块的自动生成特性资源覆盖。	KEEP	小体积 RRO，属模块特性配置；无收益且可能影响 CDM 行为。	伴生设备管理配置
+com.android.compos.payload	CompOS 载荷（受保护 VM）	CompOS Payload	apex	/apex/com.android.compos 内的载荷应用，配合受保护虚拟机（pVM）实现高安全等级密钥/DRM 运算。	KEEP	安全计算（DRM、密钥）链路的一环，属 APEX 模块；删除可能导致 Widevine/受保护播放异常，且可能被 OTA 还原。	受保护 DRM 播放、密钥运算
+com.android.connectivity.resources	连接性资源（Mainline）	Service Connectivity Resources	apex	/apex/com.android.tethering 内的连接性资源包（网络/热点相关字符串、配置）。	KEEP	网络栈/热点资源基线，属 Mainline 模块；禁用会导致相关资源缺失、系统报错。	网络、热点、连接性 UI 资源
+com.android.contacts	小米通讯录	MIUI Contacts	other	系统通讯录应用（/product/priv-app/MIUIContactsT，AOSP 包名，实际为小米通讯录）。	KEEP	系统核心应用（拨号/短信/联系人共用）；卸载会导致联系人界面缺失、相关 intent 无处理者。	联系人/拨号/短信界面；通讯录数据在 ContactsProvider
+com.android.contactspicker	联系人选择器	Contacts Picker	framework	系统“选择联系人”界面组件（第三方应用调用 READ_CONTACTS 之外的 picker 流程）。	KEEP	系统 UI 组件（/system/priv-app/ContactsPicker），多处流程（分享、选择联系人）依赖；删除会报“无应用可处理”。	选择联系人界面（分享、拨号、消息等）
+com.android.credentialmanager	凭据管理器（Passkey）	Credential Manager	security	Android 14+ 的凭据/通行密钥（Passkey）管理器前端（原始为 Google 模块，此处为小米定制包）。	KEEP	无密码登录/Passkey 生态依赖；删除会导致应用登录（Passkey）流程失败、设置项异常。	Passkey/无密码登录、账号凭据
+com.android.cts.ctsshim	CTS 兼容性测试 shim	CTS Shim	apex	/apex/com.android.apex.cts.shim 内的 CTS 测试兼容层（Compatibility Test Service）。	KEEP	仅测试用途但位于 APEX，pm 卸载通常会被系统拒绝或 OTA 后还原；体积小、无后台，动它没有收益。	无用户功能；属 OTA/测试链
+com.android.cts.priv.ctsshim	CTS 兼容性测试 shim（特权）	CTS Priv Shim	apex	特权版 CTS 兼容层，用于验证升级场景（AOSP APEX CTS shim）。	KEEP	UAD 提示可能影响 OTA 升级校验；位于 APEX，卸载大概率失败；无收益，保留。	OTA/升级兼容性校验（测试链）
+com.android.deskclock	小米时钟（闹钟）	MIUI Clock	other	系统时钟/闹钟/计时器应用（原始 APK 名 MIUIDeskClock，位于 /data，属首次开机预置的可卸载应用）。	CAUTION	可卸载预置应用：卸载只失去闹钟/时钟（不影响关机闹钟服务 com.qualcomm.qti.poweroffalarm）；机主若依赖闹钟请保留，或先装替代时钟。	时钟/闹钟/计时器；关机闹钟另依赖 PowerOffAlarm
+com.android.devicediagnostics	设备诊断	Device Diagnostics	other	设置中的“设备诊断/硬件检测”应用（检测屏幕、传感器、扬声器等）。	CAUTION	用户工具类应用，非系统依赖；卸载只失去硬件自检入口，不影响系统。属可冻结但价值有限，保守保留。	设置→设备诊断/硬件检测入口
+com.android.devicelockcontroller	设备锁定控制器（APEX）	Device Lock Controller	apex	/apex/com.android.devicelock 内的设备锁定模块，面向分期/租赁设备的远程锁定与合规。	KEEP	本机 packages-disabled 已将其禁用，无需再操作；强行卸载不会提升性能，且 APEX 模块可能在 OTA 后还原，误启用反而有锁机风险。	无（已禁用）；属分期设备合规模块
+com.android.dreams.basic	基础屏幕保护（Daydream）	Basic Dreams	other	AOSP 屏幕保护/白日梦（充电时显示的屏保）基础实现。	REMOVE	演示性质的 AOSP 屏保，无系统依赖、无后台；移除只失去“屏保”功能（任务口径把 AOSP demo 列为可移除）。	充电屏保/Dream 功能
+com.android.dynsystem	动态系统更新（DSU）	Dynamic System Updates	framework	Dynamic System Updates：免刷机试用 GSI 镜像（开发者功能）。	CAUTION	非日常功能，禁用无副作用；但 UAD 将其标为 Unsafe（历史上与 OTA/系统分区逻辑相关），不确定 HyperOS 是否复用其安装服务，保守冻结不卸载。	开发者选项中的 DSU/GSI 试用
+com.android.egg	彩蛋（Easter Egg）	Easter Egg	other	Android 版本号连点触发的彩蛋小游戏。	REMOVE	纯装饰/演示，无任何系统依赖与后台；移除零风险（任务口径把 AOSP demo 列为可移除）。	无
+com.android.emergency	紧急信息/紧急求助	Emergency Info	framework	锁屏与电源菜单中的紧急信息（医疗信息、紧急联系人）与紧急求助入口。	KEEP	涉及人身安全的功能（紧急呼叫/医疗信息），属系统 UI 组件；不建议动。	锁屏紧急信息、紧急呼叫入口
+com.android.externalstorage	外部存储提供者	External Storage Provider	provider	Storage Access Framework 的外部存储（/sdcard，含 SD 卡）文档提供者。	KEEP	所有应用的文件选择/存储访问（SAF）依赖；删除会导致文件管理器、选择文件、备份等功能异常。	文件选择器、SAF、SD 卡访问
+com.android.eyedropper	取色器	EyeDropper	framework	系统取色服务（供应用/主题取屏幕颜色，Android 12+ 的 EyeDropper HAL 前端）。	CAUTION	非核心小模块，卸载大概率只影响取色 API；但属系统新 API 的前端且更新过（firstInstallTime=2026-10-27），不确定谁在用，保守保留。	取色 API/主题取色
+com.android.federatedcompute.services	联邦计算服务（隐私计算）	Federated Compute Services	apex	/apex/com.android.ondevicepersonalization 内的联邦计算服务，用于设备端模型训练/聚合（Google 隐私计算与遥测链路）。	REMOVE_PRIVACY	属设备端遥测/隐私计算基础设施，无用户界面、无系统核心依赖；不建议直接 uninstall（APEX 内应用），先 pm disable-user 观察；风险：依赖联邦计算/隐私计算的广告或统计功能降级，不影响开机、通话、权限。	Google 隐私计算/统计链路；不影响系统稳定性
+com.android.fileexplorer	小米文件管理	MIUI File Manager	other	系统文件管理器（原始 APK 在 /product/app/MIUIFileExplorer，已更新至 /data；系统预装）。	KEEP	文件管理是系统常用入口（下载、截图、文档打开、分享），且常被其他应用当作文件选择器兜底；删除会导致大量“打开文件”流程无处理者。	文件管理/文件选择/下载打开
+com.android.health.connect.backuprestore	健康连接备份恢复	Health Connect Backup/Restore	apex	/apex/com.android.healthfitness 内模块，负责 Health Connect 数据的备份与恢复。	CAUTION	仅健康数据备份链路，禁用不影响开机；但依赖 Health Connect 的手表/健康应用在恢复数据时会异常，且属 APEX 模块可能被 OTA 还原，收益低。	Health Connect 数据备份/恢复
+com.android.healthconnect.controller	健康连接控制器	Health Connect Controller	apex	/apex/com.android.healthfitness 内的 Health Connect 管理界面（应用健康数据授权/查看）。	CAUTION	若机主不使用健康/手表应用可冻结；禁用会使设置中的“健康连接”入口与健康数据授权失效，不影响其他系统功能。属可选功能，保守标注。	健康数据授权/健康连接设置；手表/健身应用同步
+com.android.hotspot2.osulogin	Passpoint 热点登录（OSU）	Hotspot 2.0 OSU Login	other	Wi-Fi Passpoint（Hotspot 2.0）在线签约（OSU）登录流程界面（APEX 内）。	KEEP	缺少它会导致 Passpoint/运营商 Wi-Fi 自动登录流程失败；属 Wi-Fi 服务链，体积小。	Passpoint/Hotspot 2.0 Wi-Fi 登录
+com.android.htmlviewer	HTML 查看器	HTML Viewer	other	用 WebView 展示本地 HTML/文本的最小查看器，很多应用（含设置里的许可协议）通过它打开网页文件。	CAUTION	UAD 记录：在部分设备上移除会导致 bootloop；至少会影响“打开 HTML/许可协议”等 intent。收益低风险不明，保守保留。	打开本地 HTML/许可协议等；部分设备上有 bootloop 风险
+com.android.imsserviceentitlement	IMS 服务授权（VoLTE/VoWiFi）	IMS Service Entitlement	telephony	与运营商服务器做 IMS/VoLTE/VoWiFi 服务开通与鉴权（entitlement）配置。	KEEP	运营商 VoLTE/VoWiFi 开通流程依赖；删除可能导致无法启用 VoLTE/VoWiFi 或反复弹配置失败。	VoLTE、VoWiFi、运营商 IMS 开通
+com.android.incallui	小米通话界面	MIUI InCallUI	telephony	来电/去电界面（原始为 AOSP 包名，实际是小米/高通定制 InCallUI）。	KEEP	通话界面核心，卸载会导致来电无界面、无法接听/挂断；属 telephony 核心链。	来电/去电界面、通话中操作
+com.android.inputdevices	输入设备布局	Input Devices	framework	管理物理键盘/输入设备的按键布局与语言映射。	KEEP	输入设备（外接键盘/手柄）布局依赖；系统级服务，删除可能导致输入异常。	外接键盘/手柄按键映射
+com.android.inputsettings.overlay.miui	输入法设置资源覆盖（MIUI 安全核心）	MiuiSecurityCoreOverlay (InputSettings RRO)	overlay	APK 实为 MiuiSecurityCoreOverlay，为输入法/安全核心相关界面提供资源覆盖。	KEEP	激活中的 RRO，禁用可能导致输入法/安全中心相关界面资源缺失；无收益。	输入法/安全相关界面资源
+com.android.intentresolver	意图解析器（分享/打开方式）	Intent Resolver (MiIntentResolver)	framework	系统“分享到/打开方式/选择应用”界面（本机为 /system_ext/priv-app/MiIntentResolver）。	KEEP	分享面板、默认应用选择、打开链接的“选择应用”弹窗全部依赖；删除会导致无法分享/无法选择默认打开方式，系统功能严重缺失。	分享面板、打开方式选择、默认应用选择
+com.android.internal.display.cutout.emulation.corner	刘海模拟：圆角（开发者选项）	Display Cutout Emulation: Corner	overlay	开发者选项里的“模拟屏幕缺口-圆角”覆盖，默认未启用，仅用于应用适配测试。	REMOVE	仅开发者选项使用的可选 RRO，未启用、无系统依赖；移除后该测试选项消失，不影响日常显示。注意 RRO 一般不允许 pm uninstall，可用 pm disable-user 冻结。	无（仅开发者选项的显示缺口模拟）
+com.android.internal.display.cutout.emulation.double	刘海模拟：双缺口（开发者选项）	Display Cutout Emulation: Double	overlay	开发者选项里的“模拟屏幕缺口-双缺口”覆盖，默认未启用。	REMOVE	同 Corner：纯测试用可选 RRO，未启用、无系统依赖；可用 pm disable-user 冻结。	无（仅开发者选项的显示缺口模拟）
+com.android.internal.display.cutout.emulation.hole	刘海模拟：挖孔（开发者选项）	Display Cutout Emulation: Hole	overlay	开发者选项里的“模拟屏幕缺口-挖孔”覆盖，默认未启用。	REMOVE	同 Corner：纯测试用可选 RRO，未启用、无系统依赖；可用 pm disable-user 冻结。	无（仅开发者选项的显示缺口模拟）
+com.android.internal.display.cutout.emulation.tall	刘海模拟：高缺口（开发者选项）	Display Cutout Emulation: Tall	overlay	开发者选项里的“模拟屏幕缺口-高缺口”覆盖，默认未启用。	REMOVE	同 Corner：纯测试用可选 RRO，未启用、无系统依赖；可用 pm disable-user 冻结。	无（仅开发者选项的显示缺口模拟）
+com.android.internal.display.cutout.emulation.waterfall	刘海模拟：瀑布屏（开发者选项）	Display Cutout Emulation: Waterfall	overlay	开发者选项里的“模拟屏幕缺口-瀑布屏”覆盖，默认未启用。	REMOVE	同 Corner：纯测试用可选 RRO，未启用、无系统依赖；可用 pm disable-user 冻结。	无（仅开发者选项的显示缺口模拟）
+com.android.internal.systemui.navbar.gestural	手势导航覆盖（RRO）	Gesture Navigation Overlay	overlay	启用手势导航模式时生效的 SystemUI 资源/配置覆盖。	KEEP	系统当前导航模式可能依赖它；禁用会导致手势条/返回手势配置缺失。	手势导航（返回/上滑）
+com.android.internal.systemui.navbar.threebutton	三键导航覆盖（RRO）	3-Button Navigation Overlay	overlay	三键导航模式的 SystemUI 资源覆盖。	KEEP	若机主使用三键导航则必需；禁用会导致导航栏按钮资源缺失。	三键导航栏
+com.android.internal.systemui.navbar.transparent	透明导航栏覆盖（RRO）	Transparent Navigation Bar	overlay	让导航栏背景透明的资源覆盖（部分主题/应用场景使用）。	CAUTION	非核心外观 RRO，但可能被系统 UI/主题/手势条使用；不确定 HyperOS 是否默认启用，收益低，保守保留。	导航栏透明效果（SystemUI/主题）
+com.android.keychain	系统密钥链	KeyChain	security	系统级凭据/密钥链服务：向应用提供系统证书、VPN/企业证书的访问。	KEEP	UAD 标 Unsafe；VPN、企业 Wi-Fi、证书认证依赖；删除会导致安全凭据相关功能失败。	VPN、企业 Wi-Fi、证书/密钥访问
+com.android.localtransport	本地备份传输	Local Transport	framework	本地备份/恢复的传输后端（备份到设备存储）。	KEEP	系统备份框架组件；禁用会影响本地备份/恢复流程（UAD 标 Unsafe）。	本地备份与恢复
+com.android.location.fused	融合定位服务	Fused Location Provider	framework	融合 GPS/Wi-Fi/基站/传感器的定位提供者（系统定位核心）。	KEEP	所有应用定位的基础；删除会导致定位完全不可用、系统服务报错（UAD 标 Unsafe）。	全部定位功能（地图、导航、查找设备）
+com.android.managedprovisioning	工作资料配置	Managed Provisioning	framework	企业/工作资料（Work Profile）配置流程。	KEEP	MDM/工作资料、部分企业账号登录依赖；删除会导致设置工作资料时崩溃。	工作资料/MDM 配置
+com.android.managedprovisioning.overlay	工作资料配置资源覆盖	ManagedProvisioning Res Overlay	overlay	工作资料配置流程的界面资源覆盖。	KEEP	激活中的 RRO；禁用会使工作资料配置界面资源缺失。	工作资料配置界面
+com.android.microdroid.empty_payload	空载荷（microdroid 测试）	Microdroid Empty Payload	apex	/apex/com.android.virt 内的空载荷测试应用（flags 含 TEST_ONLY），用于验证 pVM/microdroid 机制。	CAUTION	TEST_ONLY 的测试载荷，无用户功能；但位于 APEX，卸载大概会被拒绝，且与 AVF/受保护 VM 同模块，收益低，建议不动。	无用户功能（AVF/microdroid 测试）
+com.android.mms	小米短信	MIUI MMS	telephony	系统短信/彩信应用（原始为 AOSP 包名，实际为小米短信 /product/priv-app/MiuiMms）。	KEEP	默认短信应用与短信接收界面核心；卸载会导致短信无法正常收发/无界面，且破坏默认短信应用角色。	短信/彩信收发与界面
+com.android.mms.service	彩信服务	MMS Service	telephony	发送/接收 MMS 的系统服务（与运营商 MMSC 交互，受 Telephony 框架调用）。	KEEP	UAD 标 Unsafe；删除后彩信无法收发，且短信应用可能报错。	彩信收发（运营商 MMSC）
+com.android.modulemetadata	模块元数据	Module Metadata	framework	Mainline 模块的元数据应用（供系统/设置展示模块版本信息）。	KEEP	UAD：system server 使用，禁用会破坏部分核心功能（如设置中的模块信息、模块更新判断）。	Mainline 模块信息/更新判断
+com.android.mtp	MTP 主机服务	MTP Host	framework	USB 连接电脑时的 MTP/PTP 文件传输服务。	KEEP	UAD 标 Unsafe；删除后 USB 连电脑传文件、部分车机互联会失败。	USB 文件传输（MTP/PTP）、车机连接
+com.android.musicfx	音乐音效（均衡器）	MusicFX	other	AOSP 音效面板（均衡器/低音增强），部分音乐应用调用。	CAUTION	非核心：删除只影响第三方音乐应用的均衡器界面，风险低但收益也低；保守冻结而非卸载。	第三方音乐 App 的均衡器/音效面板
+com.android.ncm.overlay.common	NCM 网络资源共享覆盖	NcmTethering Res Common	overlay	NCM（USB 网络共享）相关资源的通用覆盖。	KEEP	小体积 RRO，属网络共享功能资源；禁用可能影响 USB 网络共享界面。	USB 网络共享（NCM）界面
+com.android.networkstack	网络栈（NetworkStack）	NetworkStack	framework	系统网络栈应用（/system/priv-app/NetworkStack，PERSISTENT）：DHCP、网络验证、Captive Portal 判定等。	KEEP	网络核心组件（UAD 标 Unsafe）；删除/冻结会导致 Wi-Fi、移动数据、热点全面异常甚至无法开机。	Wi-Fi/移动数据/DHCP/网络验证；卸载=断网
+com.android.networkstack.overlay.miui	网络栈资源覆盖（MIUI）	NetworkStack Overlay	overlay	HyperOS 对 NetworkStack 的资源/配置覆盖。	KEEP	激活中的 RRO；禁用会造成网络提示/验证界面资源异常。	网络连接提示与验证界面
+com.android.networkstack.tethering	网络共享（Tethering）	Tethering (Mainline module)	apex	/apex/com.android.tethering 内的热点/USB 共享/Tethering 服务（PERSISTENT）。	KEEP	热点与网络共享核心；删除会导致热点无法开启、系统服务崩溃。	Wi-Fi 热点、USB/蓝牙网络共享
+com.android.nfc	NFC 服务	NFC Service	framework	NFC 核心服务（本机 APK 为 XMNfcNci，含 NXP NFC 适配）：NFC 开关、卡模拟、支付、读卡。	KEEP	NFC 支付（银联/公交卡/门禁卡模拟）、NFC 开关全部依赖；删除会导致 NFC 不可用并可能系统报错。	NFC 开关、支付、门禁卡模拟、读卡
+com.android.nfc.resources.overlay.target	NFC 资源覆盖（RRO）	Nfc Resources Target Overlay	overlay	NFC 服务的资源覆盖（提示文本/图标）。	KEEP	激活中的 RRO；禁用会导致 NFC 相关界面资源缺失。	NFC 界面与提示
+com.android.ondevicepersonalization.services	设备端个性化（广告）	On-Device Personalization	apex	/apex/com.android.ondevicepersonalization 内的设备端个性化服务：在设备本地运行广告定向/个性化模型（Google ODP）。	REMOVE_PRIVACY	纯广告个性化基础设施，无用户界面、无系统核心依赖；建议 pm disable-user（APEX 内应用卸载可能被拒）；风险：依赖 ODP 的广告 SDK 退化/拿不到个性化结果，不影响开机、通话、权限、NFC 等系统功能。	应用内广告个性化/归因；不影响系统稳定性
+com.android.ons	机会网络服务（eSIM）	Opportunistic Network Service	telephony	机会网络/多 SIM 与 eSIM 的订阅发现与切换服务（PERSISTENT）。	KEEP	eSIM/双卡订阅管理依赖；删除会导致 eSIM 下载/切换异常、系统服务报错。	eSIM 下载与切换、多 SIM 订阅管理
+com.android.overlay.cngmstelecomm	国行 GMS 通话覆盖（RRO）	GmsCnTelecomm Overlay	overlay	国行 ROM 上让 GMS 通话相关组件适配本地 Telecomm 的资源覆盖。	KEEP	GMS 与本地 telephony 适配的 RRO；禁用可能导致 GMS 通话/联系人相关功能异常。	GMS 通话/联系人适配
+com.android.overlay.gmscontactprovider	GMS 联系人提供者覆盖（RRO）	GmsContactProvider Overlay	overlay	为 GMS 联系人提供者做本地适配的资源覆盖。	KEEP	激活中的 RRO；禁用可能影响 Google 联系人同步显示。	Google 联系人同步适配
+com.android.overlay.gmssettingprovider	GMS 设置提供者覆盖（RRO）	GmsSettingProvider Overlay	overlay	为 GMS 设置提供者做本地适配的资源覆盖。	KEEP	激活中的 RRO；禁用可能影响 GMS 设置项读取。	GMS 设置项适配
+com.android.overlay.gmssettings	国行 GMS 设置覆盖（RRO）	GmsCnSettings Overlay	overlay	国行 ROM 中 Google 设置相关界面的资源覆盖。	KEEP	激活中的 RRO；禁用可能导致 Google 设置页面资源缺失。	Google 设置界面
+com.android.overlay.gmstelecomm	GMS Telecomm 覆盖（RRO）	GmsMiCSPTelecomm Overlay	overlay	国行/运营商定制（MiCSP）下 GMS Telecomm 的适配覆盖。	KEEP	激活中的 RRO；禁用可能影响 GMS 通话管理适配。	GMS Telecomm 适配
+com.android.overlay.gmstelephony	GMS Telephony 覆盖（RRO）	GmsMiCSPTelephony Overlay	overlay	国行/运营商定制下 GMS Telephony 的适配覆盖。	KEEP	激活中的 RRO；禁用可能影响 GMS 电话相关功能。	GMS Telephony 适配
+com.android.overlay.systemui	国行 GMS 系统 UI 覆盖（RRO）	GmsCnSystemUI Overlay	overlay	国行 ROM 中 SystemUI 上 GMS 相关元素的资源覆盖。	KEEP	激活中的 RRO；禁用可能导致 SystemUI 与 GMS 集成元素异常。	SystemUI 与 GMS 集成
+com.android.pacprocessor	PAC 代理处理器	PAC Processor	other	解析并执行 PAC（Proxy Auto-Config）脚本，用于 Wi-Fi 代理自动配置。	CAUTION	UAD 认为“不用代理可移除”，但企业/校园网 Wi-Fi 常用 PAC；删除后这类网络的代理自动配置失效。收益低风险中，保守保留。	Wi-Fi 代理自动配置（PAC）
+com.android.permissioncontroller	权限控制器	Permission Controller	apex	/apex/com.android.permission 内的权限管理 UI 与应用权限授予逻辑（Android 12+ 模块）。	KEEP	权限管理核心（APEX 模块）：首次授权弹窗、隐私面板、权限设置全部依赖；删除/冻结会导致权限弹窗不出现、设置崩溃。	全部应用权限授予、隐私面板、权限设置
+com.android.phone	电话服务（TeleService）	TeleService	telephony	电话核心服务应用（/system/priv-app/TeleService，PERSISTENT）：通话状态、SIM 管理、网络设置。	KEEP	telephony 核心（UAD 标 Unsafe）；删除会导致无信号、无法通话/上网、系统服务崩溃。	通话、SIM 管理、移动网络
+com.android.phone.auto_generated_characteristics_rro	电话特性 RRO	TeleService Characteristics RRO	overlay	TeleService 的自动生成特性资源覆盖。	KEEP	激活中的 RRO；禁用可能影响电话服务配置。	电话服务配置
+com.android.phone.overlay.common	电话资源覆盖（通用）	TelephonyResCommon_Sys	overlay	电话/短信界面的通用资源覆盖。	KEEP	激活中的 RRO；禁用会导致电话界面资源缺失。	电话/短信界面
+com.android.phone.overlay.miui	电话资源覆盖（MIUI）	MiuiTelephonyResOverlay	overlay	MIUI 对电话相关资源的覆盖。	KEEP	激活中的 RRO；禁用会影响小米电话/短信界面。	小米电话/短信界面
+com.android.photopicker	照片选择器（Mainline）	Photo Picker	apex	/apex/com.android.mediaprovider 内的系统照片选择器（Android 13+ 统一图片选择 UI）。	KEEP	第三方应用选图/选视频走系统 Picker；删除会导致大量 App 选图崩溃或无处理者。	应用选图/选视频（Photo Picker）
+com.android.printspooler	打印后台（小米 PrintSpooler）	Print Spooler (MiuiPrintSpooler)	other	打印任务的后台服务与打印预览界面（本机为小米定制 MiuiPrintSpooler）。	CAUTION	非核心但 UAD 明确记录：禁用会使设置中的“连接偏好/打印”子菜单异常；打印功能完全失效。若要精简，建议先只移除打印服务插件（com.android.bips）而保留 spooler。	系统打印功能、设置中的打印菜单
+com.android.providers.blockednumber	拦截号码存储	Blocked Number Provider	provider	保存被拦截/黑名单号码的 ContentProvider（电话/短信拦截）。	KEEP	来电/短信拦截的黑名单数据依赖；UAD 提示在部分设备上与最近任务/拦截 UI 关联，删除会导致拦截功能异常。	黑名单拦截（来电/短信）
+com.android.providers.calendar	日历存储	Calendar Provider	provider	日历/日程数据的 ContentProvider（系统日历与第三方日历应用共用）。	KEEP	日历数据存储核心；删除会导致日历应用、日程提醒、部分账号同步崩溃。	日历/日程数据、日历同步
+com.android.providers.contactkeys	E2EE 联系人密钥存储	E2EE Contact Keys Provider	provider	端到端加密联系人密钥（RCS/高级消息）的 ContentProvider。	KEEP	RCS/端到端加密消息功能依赖；删除可能导致消息加密/验证失败。	RCS/E2EE 消息联系人密钥
+com.android.providers.contacts	通讯录存储	Contacts Provider	provider	联系人/通话记录数据的 ContentProvider（系统核心 provider）。	KEEP	通讯录/拨号/短信全部依赖；删除会导致联系人丢失、拨号崩溃（UAD 标 Unsafe 级别 provider）。	通讯录、通话记录、短信联系人
+com.android.providers.downloads	下载存储	Download Provider	provider	系统下载管理 ContentProvider 与下载服务（负责后台下载任务）。	KEEP	UAD 标 Unsafe；应用内下载/系统更新/浏览器下载依赖，删除会导致下载失败与系统报错。	应用下载、系统更新包下载
+com.android.providers.downloads.ui	下载界面（预置可卸载应用）	Downloads UI	other	“下载”应用界面（位于 /data/app，无 SYSTEM 标记，属首次开机预置的可卸载应用；版本号 126.07.02 非 AOSP 风格，疑似小米定制）。	CAUTION	可卸载预置应用，但不确定是 AOSP Downloads UI 还是小米“下载管理”；卸载前需确认下载完成通知的打开入口是否仍有处理者，保守冻结观察。	下载完成通知的“打开”界面、下载列表 UI
+com.android.providers.media.module	媒体存储（Mainline）	MediaProvider	apex	/apex/com.android.mediaprovider 内的媒体库 ContentProvider（照片/音频/视频索引、MediaStore API）。	KEEP	照片/媒体库核心 provider；删除会导致相册、相机保存、应用读媒体全部失败，属最高风险组件。	相册、相机保存、全部媒体访问（MediaStore）
+com.android.providers.partnerbookmarks	合作方书签提供者	Partner Bookmarks Provider	provider	向浏览器提供预置合作方书签的 ContentProvider（AOSP 为 Chrome 预置书签）。	REMOVE	UAD 标记 Recommended；仅影响浏览器预置书签，无系统依赖、无后台，删除安全。	浏览器预置合作方书签
+com.android.providers.settings	设置存储	Settings Provider	provider	系统设置（Settings.Global/Secure/System）的 ContentProvider，是系统配置的存储核心。	KEEP	系统配置核心（UAD 标 Unsafe）；删除会导致系统无法启动/设置全丢，绝对不可动。	全部系统设置存储；卸载=系统崩溃
+com.android.providers.settings.overlay	设置存储资源覆盖（RRO）	SettingsProviderCustResOverlay	overlay	SettingsProvider 的定制资源覆盖（默认值/配置）。	KEEP	激活中的 RRO；禁用会导致厂商默认设置值异常。	系统设置默认值
+com.android.providers.telephony	电话/短信存储	Telephony Provider	provider	短信、APN、运营商等数据的 ContentProvider（系统核心 provider）。	KEEP	短信/APN/网络配置核心（UAD 标 Unsafe）；删除会导致短信丢失、无法上网。	短信、APN、运营商配置数据
+com.android.providers.telephony.auto_generated_characteristics_rro	电话存储特性 RRO	TelephonyProvider Characteristics RRO	overlay	TelephonyProvider 的自动生成特性资源覆盖。	KEEP	激活中的 RRO；禁用可能影响短信/APN 配置。	短信/APN 配置
+com.android.providers.telephony.overlay.miui	电话存储资源覆盖（MIUI）	MiuiTelephonyProviderResOverlay	overlay	MIUI 对 TelephonyProvider 的资源覆盖。	KEEP	激活中的 RRO；禁用会影响短信/网络设置界面资源。	短信/网络设置界面
+com.android.providers.userdictionary	用户词典存储	User Dictionary Provider	provider	输入法用户词典（自定义词）的 ContentProvider。	KEEP	输入法自定义词依赖；UAD 标 Expert 但删除后输入法可能报错，属小体积核心 provider，保守保留。	输入法用户词典
+com.android.provision	设备初始化配置	Provision	framework	开机首次配置（SetupWizard 前的 provisioning）服务。	KEEP	UAD 标 Unsafe；删除会导致首次开机/恢复出厂设置流程异常。	首次开机/恢复出厂设置流程
+com.android.proxyhandler	代理处理器	Proxy Handler	other	处理系统代理设置（HTTP/HTTPS 代理）的组件。	CAUTION	非核心，删除后手动代理/部分企业网络代理不可用；收益低，保守保留。	系统 HTTP 代理设置
+com.android.quicksearchbox	小米全局搜索	MIUI Quick Search Box	other	系统全局搜索组件（原始在 /product/priv-app/MIUIQuickSearchBox，已更新至 /data，属系统预装）：桌面下滑搜索、应用内搜索入口。	CAUTION	小米功能组件：卸载后桌面下拉/全局搜索不可用，部分启动器搜索框与主题组件可能异常；不影响开机、通话等核心功能。	桌面全局搜索、启动器搜索入口
+com.android.rkpdapp	远程密钥配置（RKPD）	Remote Key Provisioning	apex	/apex/com.android.rkpd 内的远程密钥配置应用：向服务器申请设备密钥/证明（Key Attestation）。	KEEP	安全密钥/证明链的一环（APEX 模块）；删除可能导致部分应用的安全校验（如银行、支付、DRM）失败。	密钥证明（Key Attestation）、安全相关应用校验
+com.android.role.notes.enabled	便签角色启用（RRO）	Notes Role Enabled	overlay	启用 Android 14+ “便签（Notes）”系统角色的资源覆盖。	KEEP	系统角色配置 RRO，体积小；禁用会影响默认便签角色分配，收益为零。	便签（Notes）系统角色
+com.android.safetycenter.resources	安全中心资源（Mainline）	Safety Center Resources	apex	/apex/com.android.permission 内的安全中心资源包（安全状态/警告字符串）。	KEEP	安全中心（设置中的安全与隐私）资源基线；禁用会导致安全中心界面缺资源/报错。	安全中心（Safety Center）界面
+com.android.sdksandbox	广告 SDK 沙箱（Mainline）	SDK Sandbox	apex	/apex/com.android.adservices 内的 SDK 沙箱进程宿主，为广告 SDK 提供隔离运行环境。	KEEP	与 adservices 配套的 Mainline 组件；单独卸载无收益且有兼容性风险（部分广告 SDK 依赖其进程）。若整体移除广告链再考虑，但系统层面不推荐动。	广告 SDK 隔离运行环境
+com.android.se	安全元件服务（eSE）	Secure Element Application	security	SecureElement 服务：为 NFC 卡模拟/银行支付/公交卡提供 eSE 访问（OMAPI）。	KEEP	NFC 支付、公交卡、门禁卡模拟依赖；删除会导致这些功能全部失效。	NFC 支付/公交卡/门禁卡模拟（eSE）
+com.android.se.overlay.target	安全元件资源覆盖（RRO）	SecureElementResTarget_Vendor	overlay	SecureElement 服务的资源覆盖。	KEEP	激活中的 RRO；禁用可能导致 SE 相关界面资源缺失。	安全元件相关界面
+com.android.server.telecom	通话管理服务（Telecom）	Telecom	telephony	系统通话管理服务：管理所有通话（含 VoLTE/VoWiFi）、通话音频路由、通话 UI 调度。	KEEP	UAD 标 Unsafe；通话核心，删除会导致无法通话、系统服务崩溃。	全部通话（含 VoLTE/VoWiFi）、通话音频
+com.android.server.telecom.overlay.common	通话管理资源覆盖（通用）	TelecommResCommon_Sys	overlay	Telecom 资源覆盖。	KEEP	激活中的 RRO；禁用会导致通话界面资源缺失。	通话界面
+com.android.server.telecom.overlay.miui	通话管理资源覆盖（MIUI）	MiuiTelecomResOverlay	overlay	MIUI 对 Telecom 的资源覆盖。	KEEP	激活中的 RRO；禁用会影响小米通话界面。	小米通话界面
+com.android.server.telecomui	通话管理 UI	Telecom UI	telephony	Telecom 的配套 UI 组件（通话中界面框架）。	KEEP	与 Telecom 配套；删除可能导致通话界面异常（本机已由 OTA 更新，firstInstallTime=2026-10-27）。	通话中界面
+com.android.settings	系统设置	Settings	framework	系统设置应用（/system_ext/priv-app/Settings，HyperOS 定制版）：所有设置项入口。	KEEP	系统核心应用（UAD 标 Unsafe）：删除/冻结会导致无法修改任何系统设置、系统服务报错，实际等同破坏系统。	全部系统设置入口；卸载=设置不可用
+com.android.settings.intelligence	设置智能建议/搜索	Settings Intelligence	framework	设置应用的搜索与建议后端（Settings Suggestions）。	KEEP	UAD：禁用后设置搜索/建议崩溃；属设置依赖组件，保留。	设置内搜索、建议项
+com.android.settings.overlay.common	设置资源覆盖（通用）	SettingsResCommon_Sys	overlay	设置界面的通用资源覆盖。	KEEP	激活中的 RRO；禁用会导致设置界面资源缺失。	设置界面
+com.android.settings.overlay.miui	设置资源覆盖（MIUI）	MiuiSettingsResOverlay	overlay	MIUI/HyperOS 设置界面资源覆盖。	KEEP	激活中的 RRO；禁用会导致 HyperOS 设置样式/资源错乱。	HyperOS 设置界面
+com.android.sharedstoragebackup	共享存储备份	Shared Storage Backup	framework	备份/恢复共享存储（内部存储公共目录）的辅助组件（主要用于 adb backup / 旧版备份）。	CAUTION	UAD 标 Advanced 且“不确定”；删除后 adb backup 可能不完整，日常云备份由其他组件负责；收益低，保守保留。	adb/本地备份中的共享存储部分
+com.android.shell	Shell（ADB 执行环境）	Shell	framework	adb shell 与 shell 命令的执行主体应用（uid 2000）。	KEEP	UAD 标 Unsafe；删除后 adb shell/pm 等命令无法执行，设备将无法再通过 adb 管理（且本任务的全部去膨胀操作都依赖它）。	adb shell 与所有 pm/am 命令
+com.android.simappdialog	SIM 应用安装对话框	Sim App Dialog	telephony	插入 SIM 卡时提示安装运营商应用（STK/运营商 App）的对话框。	CAUTION	非核心：删除后不再弹“安装运营商应用”提示，不影响通话/上网（UAD 标 Advanced）。属可冻结但收益低的功能，保守保留。	插卡时运营商应用安装提示
+com.android.soundpicker	铃声选择器	Sound Picker	framework	系统铃声/提示音选择界面（设置、联系人、应用通知设置都调用）。	KEEP	UAD 标 Expert 但明确“设置铃声必需”；删除会导致设置铃声、通知音选择失败。	铃声/通知音选择
+com.android.soundrecorder	小米录音机	MIUI Sound Recorder	other	系统录音机应用（位于 /data，无 SYSTEM 标记，属首次开机预置的可卸载应用；版本 8.1.10 为小米风格）。	CAUTION	可卸载预置应用：卸载只失去录音功能（通话录音可能由电话应用另行提供）；机主若用录音请保留。	录音功能；通话录音另由 TeleService/录音方案提供
+com.android.stk	SIM 卡工具包（STK）	SIM Toolkit	telephony	SIM 卡上的运营商增值服务菜单（STK）。	KEEP	国内部分运营商/物联网卡仍用 STK 菜单；删除可能导致运营商服务菜单不可用、部分卡片报错。属 telephony 链，保守保留。	SIM 卡运营商菜单/增值服务
+com.android.stk.overlay.miui	STK 资源覆盖（MIUI）	MiuiStkResOverlay	overlay	STK 界面的资源覆盖。	KEEP	激活中的 RRO；禁用可能导致 STK 菜单资源缺失。	STK 菜单界面
+com.android.storagemanager	存储管理（Smart Storage）	Storage Manager	framework	设置中的存储管理/智能清理服务（清理缓存、管理空间）。	CAUTION	UAD 标记 Unsafe（部分设备禁用后存储设置异常）；属系统设置子功能，收益低、风险不明，保守保留。	设置→存储/智能清理
+com.android.systemui	系统 UI（SystemUI）	System UI	framework	状态栏、通知栏、锁屏、导航、最近任务的核心界面进程（本机为 MiuiSystemUI，PERSISTENT）。	KEEP	系统核心（UAD 标 Unsafe）；删除/冻结会导致黑屏、无状态栏、无法解锁。	状态栏/通知/锁屏/导航；卸载=黑屏
+com.android.systemui.accessibility.accessibilitymenu	无障碍菜单	Accessibility Menu	other	无障碍快捷菜单（大号按钮：音量、亮度、锁屏等）。	CAUTION	仅无障碍辅助功能，不用无障碍可冻结；删除不影响系统核心，但会移除该辅助入口。	无障碍快捷菜单按钮
+com.android.systemui.gesture.line.overlay	手势导航条覆盖（RRO）	Gesture Line Overlay	overlay	手势导航条（底部小横条）的外观资源覆盖。	KEEP	手势导航外观依赖；禁用可能导致手势条资源缺失。	手势导航条外观
+com.android.systemui.navigation.bar.overlay	导航栏覆盖（老年模式）	ElderlyNavigationBarOverlay	overlay	APK 实为 ElderlyNavigationBarOverlay：老年/极简模式下的导航栏资源覆盖。	CAUTION	仅老年/极简模式使用，普通模式可能未启用；禁用会影响该模式的导航栏显示。收益低，保守保留。	老年/极简模式导航栏
+com.android.systemui.overlay.common	SystemUI 资源覆盖（通用）	SystemUIResCommon_Sys	overlay	SystemUI 的通用资源覆盖。	KEEP	激活中的 RRO；禁用会导致状态栏/通知栏资源缺失甚至 SystemUI 崩溃。	状态栏/通知栏/锁屏资源
+com.android.systemui.overlay.miui	SystemUI 资源覆盖（MIUI）	MiuiSystemUIResOverlay	overlay	HyperOS 对 SystemUI 的资源覆盖。	KEEP	激活中的 RRO；禁用会导致 HyperOS 状态栏/通知样式资源错乱。	HyperOS SystemUI 资源
+com.android.theme.font.notoserifsource	字体覆盖（Noto Serif）	Font Noto Serif Source	overlay	提供 Noto Serif 衬线字体的资源覆盖（字体选择/主题）。	CAUTION	字体 RRO：禁用后依赖该字体的主题/文档衬线回退会变化；一般不影响系统。不确定 HyperOS 是否默认启用，保守保留。	字体选择（Noto Serif）、主题字体
+com.android.thememanager	小米主题商店（主题管理）	MIUI Themes	other	主题中心：壁纸、主题、字体、铃声、图标包的管理与应用（版本 11.5.4.0）。	CAUTION	小米功能组件（UAD 标 Expert：禁用会破坏主题功能）；卸载后无法应用主题/字体/图标，设置中的“主题”入口可能报错。若追求精简可冻结，但会失去主题与个性化。	主题/字体/壁纸/铃声更换；设置→主题入口
+com.android.thememanager.customthemeconfig.config.overlay	主题配置资源覆盖（RRO）	MiuiThemeManagerCnOverlay	overlay	主题中心国行配置的资源覆盖。	KEEP	激活中的 RRO；禁用可能导致主题中心配置异常。	主题中心配置
+com.android.traceur	系统跟踪（开发者工具）	System Tracing	other	开发者选项中的 System Tracing（Perfetto 抓取系统 trace 的工具应用）。	REMOVE	纯开发者工具（UAD 标记 Recommended）；移除只使开发者选项中的“系统跟踪”入口失效，无系统依赖。	开发者选项→系统跟踪入口
+com.android.updater	系统更新（Mi Updater）	Updater	framework	HyperOS 系统更新应用：检查/下载/安装 OTA 更新。	KEEP	UAD 明确警告：卸载会导致设备 bootloop；属 OTA 核心，绝对不可动。	OTA 系统更新；卸载=无法更新/可能 bootloop
+com.android.uwb.resources	UWB 资源（Mainline）	UWB Service Resources	apex	/apex/com.android.uwb 内的超宽带（UWB）服务资源包。	KEEP	UWB 功能（车钥匙、精确定位、附近设备）资源基线；禁用会导致 UWB 服务报错。	UWB 超宽带功能（车钥匙/近场）
+com.android.uwb.resources.overlay.common	UWB 资源覆盖（通用 RRO）	UwbResCommon_Sys	overlay	UWB 资源的通用覆盖。	KEEP	激活中的 RRO；禁用可能导致 UWB 界面资源缺失。	UWB 功能界面
+com.android.uwb.resources.overlay.target	UWB 资源覆盖（vendor RRO）	UwbResTarget_Vendor	overlay	vendor 分区 UWB 目标资源覆盖。	KEEP	与硬件相关的 UWB 资源覆盖；禁用可能影响 UWB 参数。	UWB 硬件参数
+com.android.vending	Google Play 商店	Google Play Store	google	Google Play 商店（原始预装在 /product/priv-app/GooglePlayServicesUpdater，已更新至 /data）。	CAUTION	非系统核心：卸载/冻结只失去 Play 商店与 Play 应用更新能力，GMS 仍可运行；但若机主依赖 Play 安装/更新应用则需保留（本机为 CN ROM 却带 GMS，属用户/测试环境特有）。	Play 商店、应用安装/更新；不影响系统稳定性
+com.android.virtualization.terminal	Linux 终端（AVF，开发者）	Virtualization Terminal App	apex	/apex/com.android.virt 内的 Linux 开发终端应用（Android 15+ 的 Linux Terminal，开发者功能）。	KEEP	本机 packages-disabled 已将其禁用（无需操作）；属 APEX 模块，强行卸载收益为零且可能被 OTA 还原。	无（已禁用）；开发者 Linux 终端功能
+com.android.virtualmachine.res	虚拟机资源（AVF）	Virtual Machine Resources	apex	/apex/com.android.virt 内的虚拟机框架资源包。	KEEP	AVF/虚拟化框架资源；禁用会导致虚拟化相关功能（含受保护 VM/DRM 场景）资源缺失。	虚拟化（AVF）与受保护 VM 场景
+com.android.vpndialogs	VPN 连接对话框	VPN Dialogs	security	VPN 建立时的系统确认/状态对话框（本机为 MiuiVpnDialogs）。	KEEP	无它则第三方 VPN/企业 VPN 无法建立连接（安全敏感）；属安全组件，保留。	第三方 VPN/企业 VPN 连接
+com.android.wallpaper.livepicker	动态壁纸选择器	Live Wallpaper Picker	other	选择动态壁纸的界面组件。	CAUTION	UAD 记录：移除会破坏部分天气/壁纸应用（依赖动态壁纸选择）；若不用动态壁纸可冻结，收益低。	动态壁纸选择；部分天气/壁纸应用依赖
+com.android.wallpaperbackup	壁纸备份	Wallpaper Backup	other	备份/恢复壁纸文件的组件（换机或恢复时用）。	REMOVE	UAD 标记可安全移除；只影响壁纸备份（换机时壁纸可能需重设），无系统依赖、无后台。	壁纸备份/恢复
+com.android.wallpapercropper	壁纸裁剪器	Wallpaper Cropper	other	设置壁纸时的裁剪界面。	CAUTION	删除后“设为壁纸”的裁剪流程可能失败或回退（取决于桌面实现），收益低；保守冻结而非卸载。	设置壁纸的裁剪流程
+com.android.webapp.service	Web App 服务（Mainline）	Web App Service	apex	/apex/com.android.webapp 内模块：为“网页应用/快捷方式”提供运行时（桌面添加网页快捷方式）。	KEEP	桌面网页快捷方式/Web App 功能依赖；且为 APEX 模块，删除可能被拒绝或影响桌面。	桌面网页快捷方式/Web App
+com.android.wifi.dialog	Wi-Fi 连接对话框	Wi-Fi Dialog	framework	系统 Wi-Fi 连接确认/网络请求对话框（本机为 MiuiWifiDialog）。	KEEP	Wi-Fi 连接、热点共享等系统对话框依赖；删除会导致连接确认界面缺失。	Wi-Fi 连接确认/网络请求弹窗
+com.android.wifi.resources	Wi-Fi 资源（Mainline）	Service Wi-Fi Resources	apex	/apex/com.android.wifi 内的 Wi-Fi 服务资源包。	KEEP	Wi-Fi 服务资源基线；禁用会导致 Wi-Fi 服务报错/界面缺资源。	Wi-Fi 服务与界面
+com.android.wifi.resources.overlay.common	Wi-Fi 资源覆盖（通用）	WifiResCommon_Sys	overlay	Wi-Fi 资源通用覆盖。	KEEP	激活中的 RRO；禁用可能导致 Wi-Fi 界面资源异常。	Wi-Fi 界面资源
+com.android.wifi.resources.overlay.spf	Wi-Fi 资源覆盖（spf）	WifiResTarget_spf	overlay	vendor 分区 Wi-Fi 资源覆盖（spf 变体）。	KEEP	与 Wi-Fi 硬件相关的资源覆盖；禁用可能影响 Wi-Fi 显示/参数。	Wi-Fi 硬件相关资源
+com.android.wifi.resources.overlay.target	Wi-Fi 资源覆盖（vendor）	WifiResTarget	overlay	vendor 分区 Wi-Fi 资源覆盖。	KEEP	与 Wi-Fi 硬件相关的资源覆盖；禁用可能影响 Wi-Fi 参数/界面。	Wi-Fi 硬件相关资源
+com.android.wifi.resources.xiaomi	Wi-Fi 资源覆盖（小米 AOSP 版）	AospWifiResOverlay	overlay	小米对 AOSP Wi-Fi 资源的覆盖。	KEEP	激活中的 RRO；禁用会导致 Wi-Fi 界面资源错乱。	Wi-Fi 界面资源
+com.android.wm.shell	窗口管理 Shell（WMShell）	WM Shell (MiuiWMShellResources)	framework	窗口管理 Shell：分屏、小窗、画中画（PiP）、桌面动画等（本机为 MiuiWMShellResources，已 OTA 更新）。	KEEP	分屏/小窗/画中画/手势动画依赖；删除会导致这些功能崩溃或桌面异常。	分屏、小窗、画中画、桌面动画
+com.bsp.catchlog	BSP 日志抓取（诊断）	BSP CatchLog	other	BSP（板级支持包）日志抓取工具：抓取系统/驱动日志供售后分析（原始在 /product/app/CatchLog，已更新至 /data）。	REMOVE_PRIVACY	诊断/日志类组件（UAD 标记 Recommended 可移除）：无用户界面、按需触发，但会采集系统日志且有 CatchLogProvider 常驻 provider。移除不影响开机、通话、网络；若需向客服提供 log 可保留。	售后日志抓取；不影响系统功能
+com.fido.asm	FIDO 认证服务（FIDO2/UAF）	FIDO ASM (FidoAuthen2)	security	FIDO 认证器服务模块：FIDO2/Passkey 与 UAF 指纹认证的核心服务（含 UafService、Fido2ApiService、小米 MainActivity）。	KEEP	指纹支付（支付宝/微信）、Passkey 登录、生物识别认证依赖；删除会导致这些安全认证失败。	指纹支付、Passkey/FIDO2 登录、生物识别认证
+com.google.android.accessibility.switchaccess	切换访问（无障碍）	Switch Access	google	无障碍功能：用外接开关/摄像头手势控制手机（原始在 /product/app/SwitchAccess，已更新至 /data）。	CAUTION	仅无障碍辅助功能，不用可冻结（UAD 标 Recommended 可移除）；删除会移除该无障碍入口，不影响系统核心。属可选功能，保守标注。	无障碍“切换访问”功能
+com.google.android.cellbroadcastreceiver.overlay.miui	小区广播资源覆盖（MIUI RRO）	MiuiCellBroadcastReceiverOverlay	overlay	MIUI 对小区广播接收应用的资源覆盖（预警提示样式）。	KEEP	激活中的 RRO；禁用会影响地震预警/应急消息的展示。	地震预警/应急消息展示
+com.google.android.cellbroadcastservice.overlay.miui	小区广播服务资源覆盖（MIUI RRO）	MiuiCellBroadcastServiceOverlay	overlay	MIUI 对小区广播服务的资源覆盖。	KEEP	激活中的 RRO；禁用可能影响应急消息接收配置。	地震预警/应急广播配置
+com.google.android.configupdater	Google 配置更新器	Config Updater	google	Google 下发的配置文件更新器（TLS 证书固定、公共 Wi-Fi 门户、防火墙/网络配置等），按需联网。	CAUTION	非核心：删除后失去 Google 的配置/证书自动更新，可能影响个别 Google 服务与 captive portal 判定；收益低，保守保留（UAD：Advanced）。	Google 服务配置/TLS 配置自动更新
+com.google.android.documentsui	文件（Google DocumentsUI）	Files (DocumentsUI)	google	Google 版文件选择器/“文件”应用（本机为 DocumentsUIGoogleMiuiCn）：为应用提供 ACTION_OPEN_DOCUMENT 界面。	CAUTION	UAD 标 Expert：部分应用的文件打开完全依赖它（其他文件管理器无法完全替代）；小米文件管理器可能接管部分入口，但不确定覆盖全部 intent。保守保留。	应用“打开/保存文件”界面（SAF）
+com.google.android.ext.shared	Google 共享库（android.ext.shared）	Google Ext Shared	google	共享库应用：提供 android.ext.shared 库（本机 Libraries 段确认 android.ext.shared -> com.google.android.ext.shared）。	KEEP	部分 Google 应用通过 uses-library 依赖该共享库；删除会导致这些应用无法加载/闪退（UAD 虽称“空包”，但库绑定关系在本机存在）。	依赖 android.ext.shared 共享库的 Google 应用
+com.google.android.gms	Google Play 服务（GMS）	Google Play Services	google	Google Mobile Services 核心：账号、定位、推送（FCM）、Play 服务 API、安全校验等（原始为 APEX gmssystem，已更新至 /data，版本 26.30.32）。	KEEP	海量第三方应用依赖 GMS API；删除/冻结会导致依赖 GMS 的应用闪退、推送失效、Play 相关功能全挂。非 root 环境下不可动。	GMS 依赖的全部第三方应用、FCM 推送、Google 账号
+com.google.android.gms.location.history	Google 位置历史	Google Location History	google	Google 位置历史（Location History）客户端组件，配合 GMS 上传/管理位置历史（无独立权限声明，依赖 GMS）。	REMOVE_PRIVACY	纯位置数据采集/上传类组件（UAD 标 Recommended 可移除），无用户界面、无系统依赖；移除后仅失去 Google 位置历史功能，不影响定位、导航与其他 Google 服务。	Google 位置历史；不影响系统定位/导航
+com.google.android.gms.policy_sidecar_aps	GMS 策略 Sidecar（APS）	GMS Policy Sidecar (APS)	google	GMS 的策略 sidecar APK（AndroidPlatformServices）：随 GMS 更新切换/校验的组件（本机时间戳 2026-10-27，属 OTA 更新）。	CAUTION	UAD 标 Advanced 且用途不明；它会被 GMS 更新流程管理，卸载可能导致 GMS 自更新校验异常。收益低，保守保留。	GMS 更新/策略校验链路
+com.google.android.gsf	Google 服务框架	Google Services Framework	google	Google 服务框架：账号认证、GMS 更新、部分推送/定位的底层支撑（/system_ext/priv-app/GoogleServicesFramework）。	KEEP	GMS 与 Play 的依赖基础；删除会导致 GMS 无法正常工作、账号登录失败。	GMS、Play 商店、Google 账号登录
+com.google.android.marvin.talkback	TalkBack 屏幕朗读（无障碍）	Android Accessibility Suite (TalkBack)	google	屏幕朗读无障碍应用（原始在 /product/app/talkback，已更新至 /data）。	CAUTION	UAD 标 Recommended 可移除，但它是视障用户的核心无障碍功能；不用无障碍可冻结，删除后无法朗读屏幕。属功能取舍，保守标注。	屏幕朗读/无障碍功能
+com.google.android.overlay.gmsconfig	GMS 配置覆盖（RRO）	GmsCnConfigOverlay	overlay	国行 ROM 中 GMS 的配置资源覆盖（Google 服务本地化参数）。	KEEP	激活中的 RRO；禁用可能导致 GMS 配置/功能异常。	GMS 本地化配置
+com.google.android.printservice.recommendation	打印服务推荐	Print Service Recommendation	google	推荐安装第三方打印服务的组件（向用户推荐 Play 上的打印插件）。	REMOVE	UAD 标 Recommended；仅做“推荐打印服务”的提示，打印仍由 spooler/其他打印服务完成，无系统依赖，删除安全。	打印服务推荐提示；不影响实际打印（若已有打印服务）
+com.google.android.uwb.resources.overlay.common	UWB 资源覆盖（Mainline 通用 RRO）	UwbResCommonMainline_Sys	overlay	Mainline UWB 资源的通用覆盖。	KEEP	激活中的 RRO；禁用可能导致 UWB 服务资源缺失。	UWB 功能
+com.google.android.webview	Android 系统 WebView	Android System WebView	google	系统 WebView 提供者（原始在 /product/app/WebViewGoogle64，已更新至 /data，版本 150）：供应用内嵌网页。	KEEP	系统 WebView 提供者（且为多提供者之一）；删除会导致大量应用内网页/登录页白屏崩溃，属绝对不可动组件。	全部应用内嵌网页（WebView）、应用登录页
+com.google.android.wifi.resources.overlay.common	Wi-Fi 资源覆盖（Mainline 通用 RRO）	WifiResCommonMainline_Sys	overlay	Mainline Wi-Fi 资源的通用覆盖。	KEEP	激活中的 RRO；禁用可能导致 Wi-Fi 界面资源异常。	Wi-Fi 界面资源
+com.google.android.wifi.resources.overlay.spf	Wi-Fi 资源覆盖（Mainline spf RRO）	WifiResMainlineTarget_spf	overlay	Mainline Wi-Fi 资源的 vendor spf 覆盖。	KEEP	与 Wi-Fi 硬件相关；禁用可能影响 Wi-Fi 参数/显示。	Wi-Fi 硬件参数
+com.google.android.wifi.resources.overlay.target	Wi-Fi 资源覆盖（Mainline vendor RRO）	WifiResMainlineTarget	overlay	Mainline Wi-Fi 资源的 vendor 目标覆盖。	KEEP	与 Wi-Fi 硬件相关；禁用可能影响 Wi-Fi 参数/显示。	Wi-Fi 硬件参数
+com.google.android.wifi.resources.xiaomi	Wi-Fi 资源覆盖（小米 Mainline RRO）	AospWifiResOverlay_mainline	overlay	小米对 Mainline Wi-Fi 资源的覆盖。	KEEP	激活中的 RRO；禁用会导致 Wi-Fi 界面资源错乱。	Wi-Fi 界面资源
+com.lbe.security.miui	MIUI 权限管理（AuthManager）	MIUI Permission Manager (AuthManager / LBE)	security	小米的权限/授权管理中心（/system_ext/priv-app/AuthManager，包名沿用 LBE）：应用权限管理、隐私保护（剪贴板/相机/位置提醒）、WNProvider 等。	KEEP	UAD 标 Unsafe；设置→应用权限管理、隐私保护、部分系统授权都依赖它；删除会导致权限界面崩溃、隐私提醒失效，甚至系统服务报错。	应用权限管理、隐私保护提醒、系统授权服务
+com.mobiletools.systemhelper	系统助手（OEM System Helper）	System Helper	other	/system/priv-app 内的 OEM 助手应用，含 Activity.TestActivity 与 RegisterHelperService（疑似注册/测试辅助；包名 com.mobiletools）。	CAUTION	UAD 条目“System Helper”标 Recommended 可移除，但本机为特权 priv-app 且含 RegisterHelperService（可能参与运营商/服务注册辅助），确切用途不确定；建议冻结观察而非直接卸载。	不确定（可能涉及注册/测试辅助）；保守冻结
+com.qti.dcf	DCF 服务（高通 QESDK）	Qualcomm DCF (QESDK)	qualcomm	/system_ext/priv-app/dcf：声明 com.qualcomm.qti.qesdk.permission.DCF 签名权限，属高通 QESDK（增强 SDK）组件；无用户可见界面。	CAUTION	不确定其具体职责（可能是设备配置/能力框架，供高通服务调用）；不在 resolver 表中暴露组件，说明仅提供签名级服务。删除风险不明、收益低，保守保留。	不确定（高通 QESDK 链内部服务）
+com.qti.ltebc	LTE 广播（eMBMS）管理器	LTE Broadcast Manager	telephony	LTE Broadcast/eMBMS 管理应用（含 LTE 群呼、文件投递服务）：运营商用蜂窝广播向多用户下发内容/应急信息。	CAUTION	国内 eMBMS 部署有限，但部分运营商/应急广播可能使用；删除只影响 LTE 广播接收，不影响通话/普通数据。不确定本机是否启用该业务，保守保留。	LTE 广播/eMBMS 内容与群呼；不影响通话/上网
+com.qti.phone	QTI 电话扩展（QtiTelephony）	Qti Telephony	telephony	高通电话框架扩展应用（/system_ext/priv-app/QtiTelephony，PERSISTENT）：为 TeleService 提供 IMS/网络相关扩展。	KEEP	属 telephony 核心链（PERSISTENT），删除可能导致电话/移动网络异常、系统服务报错。	通话、移动网络、IMS 相关功能
+com.qti.qualcomm.deviceinfo	设备信息（高通）	Qualcomm Device Info	qualcomm	设备信息应用：展示/提供硬件与设备信息（设置→关于手机相关数据的来源之一）。	CAUTION	非核心（UAD：Advanced，可冻结）；删除可能导致设置→关于手机中部分信息缺失或相关界面报错。收益低，保守保留。	设置→关于手机的设备信息
+com.qti.service.colorservice	颜色服务（高通）	Color Service	qualcomm	显示色彩相关服务（含 ColorServiceApp）：可能参与色彩校准/护眼/色温。	CAUTION	用途不确定（UAD：Advanced，可能安全），删除可能影响显示色彩相关设置；收益低，保守保留。	显示色彩/色温相关设置（不确定）
+com.qualcomm.atfwd	AT 命令转发服务	AT Forwarder	qualcomm	在 modem 与上层之间转发 AT 命令的服务（运营商/诊断类 AT 指令）。	CAUTION	UAD 标 Recommended，但 AT 通道可能被运营商配置、诊断或工厂流程使用；删除风险低但收益低，保守保留。	运营商 AT 指令/诊断通道
+com.qualcomm.location	高通位置服务	Location Services (Qualcomm)	qualcomm	高通定位服务（PERSISTENT）：辅助 GNSS/网络定位，周期性与定位相关（UAD 提到会发送唯一标识）。	KEEP	定位链路的系统组件（PERSISTENT）；删除可能导致定位精度下降/定位服务报错，且 UAD 注明“禁用后仍运行”，收益低。	GNSS/网络定位辅助
+com.qualcomm.qcrilmsgtunnel	QCRIL 消息隧道	QCRIL Message Tunnel	telephony	高通 RIL 消息隧道（PERSISTENT）：在 RIL/Telephony 与厂商服务间传递消息。	KEEP	电话/网络核心链（PERSISTENT）；删除可能导致无信号、通话/数据异常。	通话、移动数据、SIM 状态
+com.qualcomm.qti.biometrics.fingerprint.qfsfactorytest	指纹工厂测试（QFS）	Fingerprint QFS Factory Test	driver	/odm/app/QfsFactoryTest：指纹模组的工厂测试/校准应用（odm 分区）。	REMOVE	工厂产线测试工具，无用户功能、无系统依赖；删除不影响指纹解锁（指纹服务由其他组件提供）。属明确的工厂/测试类可移除项。	无（工厂指纹测试/校准）
+com.qualcomm.qti.cne	连接引擎（CneApp）	Connectivity Engine (CneApp)	qualcomm	高通连接引擎（PERSISTENT，/vendor/app/CneApp）：移动数据与 Wi-Fi 之间的无缝切换、网络质量评估。	KEEP	影响 Wi-Fi/移动数据切换与网络体验（PERSISTENT）；删除可能导致网络切换异常/连接问题。	Wi-Fi/移动数据切换、网络质量评估
+com.qualcomm.qti.confdialer	会议电话拨号器	Conference Dialer	telephony	LTE 会议电话（Conference）拨号扩展界面（/product/app/ConferenceDialer）。	CAUTION	仅会议电话场景使用（国内运营商支持有限）；删除只影响多方会议呼叫，不影响普通通话。收益低，保守保留。	多方会议电话
+com.qualcomm.qti.gpudrivers.canoe.api36	Adreno GPU 驱动（APK）	Adreno GPU Drivers (canoe api36)	driver	/vendor/app 内的 GPU 驱动 APK（Canoe 平台，api36）：承载 Adreno 驱动更新/校验。	KEEP	图形驱动核心；删除会导致渲染/游戏/相机预览异常甚至无法开机。绝对不可动。	全部图形渲染、游戏、相机预览
+com.qualcomm.qti.ims	IMS 设置（imssettings）	IMS Settings (QTI)	telephony	高通 IMS 设置应用（/system_ext/app/imssettings）：VoLTE/VoWiFi/IMS 参数配置界面与服务配置。	KEEP	VoLTE/VoWiFi 配置依赖；删除可能导致 IMS 无法注册（不能打电话/上不了 VoLTE）。	VoLTE/VoWiFi、IMS 注册
+com.qualcomm.qti.poweroffalarm	关机闹钟	Power Off Alarm	telephony	关机状态下的闹钟唤机服务（/system_ext/app/PowerOffAlarm）：到点自动开机响铃。	KEEP	关机闹钟功能依赖；删除只影响“关机后闹钟响铃”，但属系统服务且体积小，保留。	关机状态下的闹钟
+com.qualcomm.qti.powersavemode	省电模式（高通）	Power Save Mode	qualcomm	高通省电模式相关服务/配置（/system_ext/app/PowerSaveMode）。	KEEP	与系统省电/功耗策略相关；删除可能影响省电模式行为与续航策略，收益低风险中。	省电模式/功耗策略
+com.qualcomm.qti.qcolor	显示色彩服务（QColor）	QColor	qualcomm	显示颜色变换服务（仅 CONTROL_DISPLAY_COLOR_TRANSFORMS 权限，含 QColor 服务）：色彩/色域调节。	CAUTION	可能参与色彩显示/护眼/色域设置；UAD 认为可能安全但用途不明。删除风险不明、收益低，保守保留。	显示色彩变换/色域设置（不确定）
+com.qualcomm.qti.qms.service.connectionsecurity	QMS 连接安全/遥测服务	QMS Connection Security Service	security	高通 QMS（Quality Management Service）连接安全服务（/vendor/app/ConnectionSecurityService，仅 INTERNET/NETWORK_STATE）。UAD 指出其后台连接 tls.telemetry.swe.quicinc.com（高通域名）。	CAUTION	具遥测性质（UAD 标 Recommended 可移除），但同时属 vendor 分区 QMS 安全/诊断链；删除可能失去高通远程诊断/证书相关能力。遥测+安全混合，保守标注为 CAUTION（若做隐私强化，可在了解风险后冻结）。	高通 QMS 远程诊断/安全链；可能上报设备数据
+com.qualcomm.qti.qms.service.trustzoneaccess	TrustZone 访问服务	QMS TrustZone Access Service	security	为授权应用提供 Qualcomm/ARM TrustZone 安全世界访问通道（/vendor/app/TrustZoneAccessService）。	KEEP	安全组件（UAD 标 Unsafe）；删除可能导致指纹/支付/DRM 等依赖 TEE 的功能失效。	TEE/TrustZone 相关安全功能（支付/指纹/DRM）
+com.qualcomm.qti.remoteSimlockAuth	远程 SIM 锁鉴权	Remote SIM Lock Authentication	telephony	eSIM/远程 SIM 锁（Remote SIM Lock）的鉴权组件（/product/app/remoteSimLockAuthentication，声明 REMOTE_SIMLOCK_AUTH 权限）。	CAUTION	国内零售机一般不用远程锁，但属 SIM/eSIM 管理链；删除可能影响运营商/企业远程锁与部分 eSIM 流程。收益低，保守保留。	eSIM/远程 SIM 锁鉴权
+com.qualcomm.qti.ridemodeaudio	骑行模式音频	Ride Mode Audio	other	/product/app/RideModeAudio，含 MainActivity 与 androidx.startup provider；持 READ_PRECISE_PHONE_STATE/MODIFY_PHONE_STATE/INTERNET，疑似骑行/车机模式的音频提示服务。	CAUTION	用途不确定（UAD 无条目）：可能是骑行/车载模式音频提示；删除后相关模式提示音/功能可能缺失。收益不明，保守保留。	骑行/车机模式音频提示（不确定）
+com.qualcomm.qti.server.qtiwifi	高通 Wi-Fi 服务	QTI Wi-Fi Service	qualcomm	/system_ext/priv-app/QtiWifiService：Wi-Fi 框架的高通扩展（连接评分/漫游/厂商特性）。	KEEP	Wi-Fi 连接体验相关（可能参与漫游/评分）；删除可能导致 Wi-Fi 异常或厂商特性失效。	Wi-Fi 连接、漫游、厂商特性
+com.qualcomm.qti.server.wigig.tethering.rro	WiGig 网络共享覆盖（RRO）	Wigig Tethering RRO	overlay	WiGig（60GHz）网络共享的资源覆盖（/system_ext/app/WigigTetheringRRO）。	CAUTION	手机通常不启用 WiGig；该 RRO 默认未激活，删除/冻结影响面极小（UAD 标 Unsafe 但针对“tethering 服务”另一包）。收益低，保守保留。	WiGig 网络共享（本机大概率未使用）
+com.qualcomm.qti.services.systemhelper	高通系统助手服务	Qualcomm System Helper Service	qualcomm	高通 SystemHelper 服务（SysHelperService，持 DEVICE_POWER/READ_PHONE_STATE 等）；本机 packages-disabled 中已被系统禁用。	KEEP	本机已被系统禁用（无需操作）；属高通 vendor 服务，强行卸载收益为零且可能影响其他高通服务联动。	无（已禁用）；高通服务联动
+com.qualcomm.qti.uim	远程 SIM 锁服务（UIM）	Remote SIM Lock Service	telephony	远程 SIM 锁服务（/product/app/remotesimlockservice，声明 REMOTE_SIMLOCK 权限；UAD：RemoteSimLockService）。	CAUTION	UAD 标 Recommended 可移除；但属 SIM/eSIM 管理链，若使用运营商远程锁/企业 eSIM 需保留。国内零售机大概率无用，保守标注。	eSIM/远程 SIM 锁；不影响普通 SIM 通话上网
+com.qualcomm.qti.uimGbaApp	UIM GBA 认证服务	UIM GBA App	telephony	基于 SIM 的 GBA（Generic Bootstrapping Architecture）认证服务（/product/app/uimgbaservice）：运营商业务鉴权。	CAUTION	属运营商 SIM 鉴权链（部分运营商业务/IMS 鉴权可能使用）；删除可能影响特定运营商业务。收益低，保守保留。	运营商 GBA 鉴权业务
+com.qualcomm.qti.workloadclassifier	工作负载分类器（WLC）	Workload Classifier	qualcomm	WLCService：按负载分类做 CPU/性能调度决策（/system_ext/app/workloadclassifier）。	KEEP	性能/功耗调度相关；UAD 认为可能重要；删除可能导致调度异常、续航/性能变差。	性能调度、续航策略
+com.qualcomm.qti.xrcb	XR 服务客户端（QXR）	XR Service Client (xrcbservice)	qualcomm	高通 XR（扩展现实）服务客户端（/system_ext/priv-app/xrcbservice），声明 QXRServiceClientPermission。	CAUTION	XR 眼镜/扩展现实功能相关；本机若不使用 XR 设备则无影响。删除收益低、用途不确定，保守保留。	XR 眼镜/扩展现实功能（若使用）
+com.qualcomm.qti.xrvd.service	XR 视频显示服务	XR Video Display Service	qualcomm	xrvd（XR video display）服务（/system_ext/priv-app/xrvdservice）：面向 XR 设备的显示/渲染服务。	CAUTION	仅 XR 场景使用；删除对普通手机使用无影响，但用途不确定、收益低，保守保留。	XR 设备显示（若使用）
+com.qualcomm.qti.xrwifi	XR Wi-Fi 服务	XR Wi-Fi Service	qualcomm	XR 设备的 Wi-Fi 协同服务（/system_ext/priv-app/xrwifiservice，声明 ACCESS_XRWIFI 权限）。	CAUTION	仅 XR 场景使用；删除对普通 Wi-Fi 无影响，但收益低、用途不确定，保守保留。	XR 设备 Wi-Fi 协同（若使用）
+com.qualcomm.timeservice	高通时间服务	Qualcomm Time Service	qualcomm	基于 modem/NITZ 的时间同步服务（/vendor/app/TimeService）：辅助系统时间/时区同步。	KEEP	时间同步相关；删除可能导致时间/时区同步异常（影响证书校验、闹钟、日志），收益低。	时间/时区同步
+com.qualcomm.uimremoteclient	UIM 远程客户端	UIM Remote Client	telephony	远程 UIM 客户端（/product/app/uimremoteclient）：与远端 SIM（如独立通信手表/eSIM 设备）交互。	CAUTION	属 SIM/远程 UIM 链，普通单机用户不用；删除风险低但收益低，保守保留。	远程 SIM/UIM（穿戴设备 eSIM 场景）
+com.qualcomm.uimremoteserver	UIM 远程服务端	UIM Remote Server	telephony	远程 UIM 服务端（/product/app/uimremoteserver）：向上游提供远程 SIM 服务能力。	CAUTION	同 uimremoteclient：仅远程 SIM/穿戴场景使用；收益低，保守保留。	远程 SIM/UIM（穿戴设备 eSIM 场景）
+com.qualcomm.wfd.service	Wi-Fi Display（投屏）服务	Wi-Fi Display Service	qualcomm	Miracast/Wi-Fi Display 投屏服务（/system_ext/priv-app/WfdService）。	CAUTION	仅无线投屏使用；若机主不用 Miracast 可冻结（UAD：Advanced），删除后无线投屏失效，不影响其他功能。属功能取舍，保守标注。	Miracast 无线投屏
+com.unionpay.tsmservice.mi	银联 TSM 服务	UnionPay TSM Service	security	银联可信服务管理（TSM）组件（原始在 /product/app/UPTsmService，已更新至 /data）：NFC 银行卡/云闪付的卡片应用管理与安全通道。	CAUTION	删除会影响 NFC 银行卡/云闪付等银联支付功能；不用 NFC 支付可冻结，但属支付安全链，保守保留。	NFC 银行卡/云闪付等银联支付
+org.codeaurora.ims	IMS 协议栈（CodeAurora）	IMS Stack (CodeAurora)	telephony	高通/CodAurora IMS 协议栈应用（/system_ext/priv-app/ims，PERSISTENT）：VoLTE/VoWiFi/视频通话的 IMS 实现。	KEEP	VoLTE/VoWiFi/ViLTE 核心（PERSISTENT）；删除会导致无法通话（4G/5G 通话依赖 IMS）或 IMS 注册失败。	VoLTE/VoWiFi/视频通话
+org.ifaa.aidl.manager	IFAA 认证管理器	IFAA Manager	security	IFAA（互联网金融身份认证联盟）AIDL 服务（/product/app/IFAAService，PERSISTENT）：为支付宝/微信等提供指纹/人脸支付认证。	KEEP	国内指纹支付（支付宝/微信）依赖；删除会导致生物识别支付失败。属安全组件，保留。	支付宝/微信指纹支付、IFAA 生物识别认证
+org.localsend.localsend_app	LocalSend（用户自装）	LocalSend (user-installed)	other	LocalSend 局域网文件传输应用。位于 /data/app，无 SYSTEM 标记，installer=com.android.vending（Play 商店），firstInstallTime=2026-08-17，属用户自行安装的第三方应用。	REMOVE	非系统预装、无系统依赖，可按普通应用直接卸载；与本设备系统精简无关，若机主在用请忽略。	无系统影响；仅失去该文件传输应用
+vendor.qti.bluetooth.xpan	蓝牙 XPAN 服务	Bluetooth XPAN Service	qualcomm	XPAN（Extended Personal Area Network）服务（/system_ext/priv-app/Xpan）：让蓝牙耳机通过 Wi-Fi 扩展连接范围/带宽（高通新特性）。	KEEP	新款蓝牙耳机（尤其支持 XPAN 的）连接/音质依赖；删除可能导致耳机功能受限或蓝牙服务报错。	蓝牙耳机 XPAN 连接/扩展范围
+vendor.qti.bluetooth.xpan.overlay.target	蓝牙 XPAN 资源覆盖（RRO）	XpanResTarget_Vendor	overlay	XPAN 服务的资源覆盖（vendor 分区）。	KEEP	与 XPAN 配套的 RRO；禁用可能导致 XPAN 界面资源缺失。	蓝牙 XPAN 功能资源
+vendor.qti.data.ntnsatapp	NTN 卫星数据服务	NTN Satellite Data App	telephony	NTN（非地面网络/卫星）数据服务（/system_ext/app/NtnSatApp，含 NtnDataServiceImpl）：支持卫星直连数据/消息。	CAUTION	若本机支持卫星通信（天通/北斗短报文等）则必须保留；若不支持则该服务闲置。不确定 Xiaomi 17 Pro Max 的卫星能力，保守保留。	卫星直连数据/消息（若硬件支持）
+vendor.qti.hardware.cacert.server	CA 证书服务（高通）	CA Cert Server	security	高通硬件 CA 证书服务（/vendor/app/CACertService，PERSISTENT）：设备证书/证书链服务。	KEEP	安全证书链（PERSISTENT）；删除可能导致证书校验/DRM/安全启动相关功能异常。	设备证书/证书链校验（DRM、安全服务）
+vendor.qti.imsdatachannel	IMS 数据通道服务	IMS Data Channel Service	telephony	IMS 数据通道（Data Channel）服务（/system_ext/app/ImsDataChannelService，PERSISTENT）：RCS/通话中数据共享（如通话中共享位置/图片）。	KEEP	RCS 与 IMS 数据通道功能依赖（PERSISTENT）；删除可能导致 RCS/增强通话功能异常。	RCS、通话中数据共享
+vendor.qti.iwlan	VoWiFi（IWLAN）服务	IWLAN Service	telephony	IWLAN 服务（/vendor/app/IWlanService）：Wi-Fi 通话（VoWiFi）与 Wi-Fi 数据卸载。	KEEP	VoWiFi/Wi-Fi calling 依赖；删除会导致 Wi-Fi 通话不可用、部分运营商网络切换异常。	VoWiFi/Wi-Fi 通话、数据卸载

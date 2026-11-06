@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 线性图标：雷达环 + 探针扫线 + 单一 accent 圆心。无盾牌、无渐变、无填充块。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 外环：雷达扫描范围 -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M54,29 A25,25 0 1,1 54,79 A25,25 0 1,1 54,29 Z"
+        android:strokeColor="#17171A"
+        android:strokeWidth="3.4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+
+    <!-- 内环：次级扫描圈，弱化存在感 -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M54,39.5 A14.5,14.5 0 1,1 54,68.5 A14.5,14.5 0 1,1 54,39.5 Z"
+        android:strokeColor="#17171A"
+        android:strokeWidth="2.2"
+        android:strokeAlpha="0.55" />
+
+    <!-- 探针扫线 -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M54,54 L71,37"
+        android:strokeColor="#17171A"
+        android:strokeWidth="3.0"
+        android:strokeLineCap="round" />
+
+    <!-- 唯一彩色：扫描中心 -->
+    <path
+        android:fillColor="#3E63DD"
+        android:pathData="M58,54 A4,4 0 1,1 58,53.99 Z" />
+</vector>

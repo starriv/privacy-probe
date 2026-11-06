@@ -1,0 +1,24 @@
+# Android / Gradle 产物
+build/
+.gradle/
+.cxx/
+.kotlin/
+.gradle-home/
+.android-home/
+local.properties
+*.apk
+*.aab
+*.hprof
+
+# 发布签名（绝不入库；CI 使用 GitHub Secrets）
+*.jks
+*.keystore
+keystore.properties
+dist/
+
+# 编辑器 / 系统
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.iml

@@ -1,0 +1,12 @@
+# NOIR — functional domains
+# generated 2026-11-05 · 8 hosts
+# DO NOT BLOCK: push, login, updates, payments, app stores, cloud sync and connectivity checks.
+#
+android.googleapis.com
+api-audit.heytapmobi.com
+gateway-papa.cloud.weizhi.com
+hpmweb.alipay.com
+play.googleapis.com
+twebgwnet.alipay.com
+twebgwnet.run.alipay.net
+upload-data-api.xmpush.xiaomi.net

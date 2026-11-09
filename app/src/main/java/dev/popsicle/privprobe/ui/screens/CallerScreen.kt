@@ -114,9 +114,9 @@ private fun CallerContent(
                         Spacer(Modifier.width(6.dp))
                         Chip(text = "系统应用", color = p.muted)
                     }
-                    if (Intel.isDebloatCleaned(caller.packageName)) {
+                    Intel.debloatLabel(caller.packageName)?.let { label ->
                         Spacer(Modifier.width(6.dp))
-                        Chip(text = "已清理", color = p.muted)
+                        Chip(text = label, color = p.muted)
                     }
                 }
                 Spacer(Modifier.height(12.dp))

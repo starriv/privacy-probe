@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.2.4 — 2026-11-09
+
+### 修复
+- 清理标记口径：调用者详情不再把「仅禁用组件」的包标成「已清理」。清理清单按
+  整包卸载 / 已锁定 / 已冻结 / 仅禁组件四种粒度解析，`com.miui.securitycenter`（手机管家）、
+  `com.miui.miwallpaper`、`com.miui.packageinstaller`、`com.miui.securitycore` 显示「仅禁组件」，
+  `com.mobiletools.systemhelper`、`com.miui.greenguard` 显示「已锁定」。
+- 数据集生成只从清单表格反引号代码段提取包名：组件全限定名（如
+  `com.miui.electricrisk.AiGuardSceneService`）和 `android.uid.*` 不再混入 debloat 集合
+  （旧数据集 44 条里 15 条是组件类名）。
+
+### 数据
+- 同步 `knowledge/DEBLOAT-EXECUTED.md` 到最新已执行清单（含 2026-11-08 的
+  SystemHelper 锁定、OTA 禁用、扩展功能补录）。
+
 ## 1.2.3 — 2026-11-06
 
 ### 修复

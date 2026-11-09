@@ -21,8 +21,14 @@ object Intel {
             ?: "未知应用"
     }
 
-    /** 本仓库 Debloat 已清理的系统包。 */
-    fun isDebloatCleaned(packageName: String?): Boolean = RepoIntel.isDebloatCleaned(packageName)
+    /** 本仓库 Debloat 对该包的处置标签：已卸载 / 已锁定 / 已冻结 / 仅禁组件。 */
+    fun debloatLabel(packageName: String?): String? = when (RepoIntel.debloatKind(packageName)) {
+        "uninstall" -> "已卸载"
+        "lock" -> "已锁定"
+        "freeze" -> "已冻结"
+        "component" -> "仅禁组件"
+        else -> null
+    }
 
     /** 目标展示文本：网络类支持域名脱敏。 */
     fun displayTarget(target: String?, category: PrivacyCategory, maskDomains: Boolean): String {

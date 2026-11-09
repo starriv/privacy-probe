@@ -11,7 +11,7 @@ import org.json.JSONObject
  * - research/kb-core.tsv、research/kb-miui.tsv：376 个系统包的中文名 / 分类 / 处置建议
  * - noir-audit/report.json：247 个「联网 + 敏感权限」应用的端点、数据类型、评分
  * - noir-audit/domains-{trackers,functional,other}.txt：域名分类
- * - docs/DEBLOAT-EXECUTED.md：本仓库已执行清理的系统包
+ * - knowledge/DEBLOAT-EXECUTED.md：本仓库已执行清理清单（整包卸载 / 锁定 / 冻结 / 仅禁组件）
  *
  * 只读、纯本地，不发任何网络请求。
  */
@@ -60,7 +60,7 @@ object RepoIntel {
     private val packages = HashMap<String, PackageIntel>()
     private val domainKinds = HashMap<String, String>()
     private val domainPackages = HashMap<String, List<String>>()
-    private val debloat = HashSet<String>()
+    private val debloat = HashMap<String, String>()
     private var profile: DeviceProfile? = null
 
     fun init(context: Context) {
@@ -86,8 +86,11 @@ object RepoIntel {
     fun knownPackages(): Map<String, PackageIntel> =
         if (loaded) packages else emptyMap()
 
-    fun isDebloatCleaned(packageName: String?): Boolean =
-        loaded && packageName != null && debloat.contains(packageName)
+    /** 本仓库清理清单对该包的处置：uninstall / lock / freeze / component；未清理或未加载为 null。 */
+    fun debloatKind(packageName: String?): String? =
+        if (!loaded || packageName.isNullOrBlank()) null else debloat[packageName]
+
+    fun isDebloatCleaned(packageName: String?): Boolean = debloatKind(packageName) != null
 
     /** 精确匹配失败时按父域名回退（用于识别子域上报）。 */
     fun domainIntel(domain: String?): DomainIntel? {
@@ -147,7 +150,11 @@ object RepoIntel {
         }
         val db = root.optJSONObject("debloat")
         if (db != null) {
-            db.keys().forEach { debloat.add(it) }
+            db.keys().forEach { pkg ->
+                // 兼容旧数据集：布尔 true 视为整包卸载。
+                val kind = db.optString(pkg, "")
+                debloat[pkg] = if (kind.isBlank() || kind == "true") "uninstall" else kind
+            }
         }
     }
 

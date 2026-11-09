@@ -51,6 +51,83 @@ def read_domains(path):
     return out
 
 
+# 清理清单的处置粒度（package_intel.json 里 debloat 映射的取值）。
+DEBLOAT_SECTIONS = (
+    ("已卸载", "uninstall"),    # pm uninstall -k --user 0
+    ("已锁定", "lock"),         # 卸载 + disable-user + 清数据
+    ("已冻结", "freeze"),       # pm disable-user --user 0
+    ("已禁用组件", "component"),  # 只禁了包内组件，包本体仍在
+)
+DEBLOAT_RANK = {"component": 1, "freeze": 2, "uninstall": 3, "lock": 4}
+# 包名：每段以小写字母开头（允许 systemAdSolution 这类驼峰），
+# 因此组件类名（AiGuardSceneService / XSOFProvider 等）不会命中。
+PACKAGE_RE = re.compile(r"^(?:com|android|miui|org)(?:\.[a-z][A-Za-z0-9_]*)+$")
+# android.uid.* / android.process.* 是共享 UID 名，不是包名。
+NON_PACKAGE_RE = re.compile(r"^android\.(?:uid|process)\.")
+CODE_SPAN_RE = re.compile(r"`([^`]+)`")
+
+
+def is_package_name(name):
+    return bool(PACKAGE_RE.match(name)) and not NON_PACKAGE_RE.match(name)
+
+
+def packages_in_row(cells):
+    """取表格行反引号代码段里的包名；`包/组件` 形式只取斜杠前的包。"""
+    out = []
+    for cell in cells:
+        for span in CODE_SPAN_RE.findall(cell):
+            head = span.split("/", 1)[0].strip()
+            if is_package_name(head):
+                out.append(head)
+    return out
+
+
+def classify_debloat_row(cells, section):
+    """按分组 + 行内动作词判断处置粒度；返回 None 表示这行不是清理动作。"""
+    text = " ".join(cells)
+    if "uninstall-lock" in text:
+        return "lock"
+    if section == "uninstall" and "锁定" in text:
+        return "lock"
+    if section is not None:
+        return section
+    if "pm uninstall" in text:
+        return "uninstall"
+    if "disable-user" in text:
+        return "freeze"
+    if "pm disable" in text:
+        return "component"
+    return None
+
+
+def parse_debloat(path):
+    """解析知识库里的已执行清理清单，返回 {包名: 粒度}。
+
+    只从 markdown 表格取数：包名来自反引号代码段且必须全小写；组件全限定名
+    （如 com.miui.electricrisk.AiGuardSceneService）不会被当成包。
+    同一包出现在多处时保留影响更大的动作（lock > uninstall > freeze > component）。
+    """
+    debloat = {}
+    section = None
+    with open(path, encoding="utf-8") as f:
+        for raw in f:
+            line = raw.strip()
+            if line.startswith("## "):
+                title = line[3:]
+                section = next((kind for key, kind in DEBLOAT_SECTIONS if key in title), None)
+                continue
+            if not line.startswith("|"):
+                continue
+            cells = [c.strip() for c in line.strip("|").split("|")]
+            kind = classify_debloat_row(cells, section)
+            if kind is None:
+                continue
+            for pkg in packages_in_row(cells):
+                if DEBLOAT_RANK[kind] > DEBLOAT_RANK.get(debloat.get(pkg), 0):
+                    debloat[pkg] = kind
+    return dict(sorted(debloat.items()))
+
+
 def main():
     kb = {}
     for name in ("kb-core.tsv", "kb-miui.tsv"):
@@ -110,9 +187,12 @@ def main():
     debloat = {}
     debloat_md = os.path.join(KNOW, "DEBLOAT-EXECUTED.md")
     if os.path.exists(debloat_md):
-        text = open(debloat_md, encoding="utf-8").read()
-        for pkg in sorted(set(re.findall(r"\b(?:com|android|miui)\.[a-zA-Z0-9_.]+", text))):
-            debloat[pkg] = True
+        debloat = parse_debloat(debloat_md)
+        if not debloat:
+            raise SystemExit("debloat: 解析结果为空，请检查 knowledge/DEBLOAT-EXECUTED.md 格式")
+        counts = {kind: sum(1 for v in debloat.values() if v == kind)
+                  for kind in ("uninstall", "lock", "freeze", "component")}
+        print("debloat: " + ", ".join(f"{k}={v}" for k, v in counts.items() if v))
 
     device_profile = {
         "model": "2509FPN0BC",
